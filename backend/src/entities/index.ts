@@ -1,0 +1,9 @@
+export { Student } from './student.entity';
+export { MockExam } from './mock-exam.entity';
+export { ExamSubject } from './exam-subject.entity';
+export { ExamData } from './exam-data.entity';
+export { WeakArea } from './weak-area.entity';
+export { StudyPlan } from './study-plan.entity';
+export { PlanSlot } from './plan-slot.entity';
+export { ChatSession } from './chat-session.entity';
+export { ChatMessage } from './chat-message.entity';
