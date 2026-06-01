@@ -19,7 +19,7 @@ export class ExamSubject {
   @Column()
   exam_id: number;
 
-  @Column()
+  @Column('int')
   student_id: number;
 
   @Column({ length: 30 })
@@ -28,17 +28,17 @@ export class ExamSubject {
   @Column('int')
   grade: number;
 
-  @Column('int')
+  @Column('decimal', { precision: 6, scale: 1 })
   score: number;
 
-  @Column('int')
+  @Column('decimal', { precision: 6, scale: 2 })
   percent: number;
 
   @Column('int', { array: true, default: '{}' })
   wrong_answer: number[];
 
   @Column('decimal', { precision: 5, scale: 2, nullable: true })
-  correct_rate: number;
+  correct_rate: number | null;
 
   @CreateDateColumn()
   created_at: Date;

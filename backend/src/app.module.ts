@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { WeakAreaModule } from './weak-area/weak-area.module';
+import { ExamModule } from './exam/exam.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { WeakAreaModule } from './weak-area/weak-area.module';
       }),
     }),
     WeakAreaModule,
+    ExamModule,
   ],
 })
 export class AppModule {}
