@@ -28,10 +28,10 @@ export class ExamSubject {
   @Column('int')
   grade: number;
 
-  @Column('int')
+  @Column('decimal', { precision: 6, scale: 1 })
   score: number;
 
-  @Column('int')
+  @Column('decimal', { precision: 6, scale: 2 })
   percent: number;
 
   @Column('int', { array: true, default: '{}' })

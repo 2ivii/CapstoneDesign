@@ -17,6 +17,7 @@ interface SubjectResult {
 interface OcrResult {
   exam_name: string;
   year: number;
+  grade_level: number;
   subjects: SubjectResult[];
 }
 
@@ -58,7 +59,11 @@ export class ExamService {
     }));
 
     const mockExam = await this.mockExamRepo.save(
-      this.mockExamRepo.create({ name: mainResult.exam_name, year: mainResult.year }),
+      this.mockExamRepo.create({
+        name: mainResult.exam_name,
+        year: mainResult.year,
+        grade_level: mainResult.grade_level,
+      }),
     );
 
     const examSubjects = subjects.map((sub) =>
@@ -66,9 +71,9 @@ export class ExamService {
         exam_id: mockExam.exam_id,
         student_id: studentId,
         subject: sub.subject,
-        score: Math.round(sub.score),
+        score: Math.round(sub.score * 10) / 10,
         grade: Math.round(sub.grade),
-        percent: Math.round(sub.percentile),
+        percent: Math.round(sub.percentile * 100) / 100,
         wrong_answer: sub.wrong_answers,
         correct_rate: sub.correct_rate,
       }),
@@ -97,6 +102,7 @@ export class ExamService {
 {
   "exam_name": "시험 전체 명칭 (예: 2026학년도 3월 고1 전국연합학력평가)",
   "year": 연도_숫자,
+  "grade_level": 학년_정수 (고1=1, 고2=2, 고3=3),
   "subjects": [
     {
       "subject": "과목명",
@@ -112,7 +118,7 @@ export class ExamService {
     const dataUrl = `data:${file.mimetype};base64,${file.buffer.toString('base64')}`;
 
     const response = await this.openai.chat.completions.create({
-      model: 'gpt-5.4',
+      model: 'gpt-5.5',
       messages: [
         {
           role: 'user',
@@ -140,30 +146,29 @@ export class ExamService {
     const prompt = `이 이미지는 한국 모의고사 성적표의 하단 채점 결과 표입니다.
 
 ## 표 구조
-각 과목(국어, 수학, 영어, 한국사, 탐구)마다 4개의 행이 있습니다:
-- 1행 "답안": 학생이 작성한 답
-- 2행 "정답": 실제 정답
-- 3행 "채점결과": O 또는 X (이 행은 무시하세요)
-- 4행 "정답률": 알파벳 등급 (이 행도 무시하세요)
+각 과목(국어, 수학, 영어, 한국사, 탐구)마다 4개의 행이 반복됩니다:
+- 1행 "답안": 숫자 또는 알파벳
+- 2행 "정답": 숫자 또는 알파벳
+- 3행 "채점결과": O 또는 X만 있음 ← 이 행만 읽으세요
+- 4행 "정답률": B, C, D, E 같은 알파벳 등급 ← 무시
 
-열 번호는 문항 번호(1, 2, 3, ...)입니다.
+열 헤더가 문항 번호(1, 2, 3, ...)입니다.
+
+## O와 X 구분 가이드
+- O: 동그란 원형, 안이 비어있음, 둥글게 생김
+- X: 두 직선이 교차, 대각선 두 줄이 겹침
+- 이 두 기호만 존재합니다. 다른 기호는 없습니다.
+- 헷갈리면 바로 위의 답안 행과 정답 행을 비교하세요. 답안=정답이면 O, 다르면 X입니다.
 
 ## 과목별 문항 수
 - 국어: 1~45번
-- 수학: 1~30번 (일부 문항은 두 자리 이상 숫자 답)
+- 수학: 1~30번
 - 영어: 1~45번
 - 한국사: 1~20번
-- 탐구: 과목별 1~25번 (사회/과학 등 별도 표로 나뉨)
+- 탐구: 과목별 1~25번 (사회, 과학 등 별도 표)
 
-## 추출 방법
-채점결과 행(O/X)은 읽지 마세요. 대신:
-1. "답안" 행의 값과 "정답" 행의 값을 문항별로 비교하세요
-2. 답안 ≠ 정답이면 해당 문항 번호가 오답입니다
-3. 답안이 비어있는 문항도 오답입니다
-
-## 탐구 과목 식별
-탐구 표는 별도로 있으며, "사회"와 "과학" 등 과목명이 표시되어 있습니다.
-각 세부 과목별로 독립적으로 추출하세요.
+## 추출 대상
+3행 "채점결과"에서 X인 문항 번호만 추출하세요.
 
 ## 출력 형식
 JSON만 반환하세요. 마크다운 코드블록이나 설명 텍스트는 절대 포함하지 마세요.
@@ -179,15 +184,14 @@ JSON만 반환하세요. 마크다운 코드블록이나 설명 텍스트는 절
 }
 
 ## 주의사항
-- 문항 번호는 정수 배열
-- 오답이 없으면 빈 배열 []
-- 탐구 과목명은 표에 적힌 그대로 사용
-- 반드시 답안과 정답을 직접 비교하여 판단하세요`;
+- 문항 번호는 정수 배열, 오답 없으면 []
+- 탐구 과목명은 표에 적힌 세부 과목명 그대로 사용
+- 4행 정답률(B, C, D 등)을 X로 착각하지 마세요. 채점결과는 반드시 3행입니다`;
 
     const dataUrl = `data:${file.mimetype};base64,${file.buffer.toString('base64')}`;
 
     const response = await this.openai.chat.completions.create({
-      model: 'gpt-5.4',
+      model: 'gpt-5.5',
       messages: [
         {
           role: 'user',
