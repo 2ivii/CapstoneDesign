@@ -19,6 +19,10 @@ export class MockExam {
   @Column('int')
   year: number;
 
+  // 대상 학년 (1 = 고1, 2 = 고2, 3 = 고3)
+  @Column('int')
+  grade_level: number;
+
   @CreateDateColumn()
   created_at: Date;
 
