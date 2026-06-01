@@ -9,11 +9,11 @@ import { StudyPlan } from './study-plan.entity';
 
 @Entity('plan_slots')
 export class PlanSlot {
-  @PrimaryGeneratedColumn('uuid')
-  slot_id: string;
+  @PrimaryGeneratedColumn('increment')
+  slot_id: number;
 
   @Column()
-  plan_id: string;
+  plan_id: number;
 
   @Column({ length: 30 })
   subject: string;

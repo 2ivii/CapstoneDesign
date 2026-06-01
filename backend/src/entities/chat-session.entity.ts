@@ -12,11 +12,11 @@ import { ChatMessage } from './chat-message.entity';
 
 @Entity('chat_sessions')
 export class ChatSession {
-  @PrimaryGeneratedColumn('uuid')
-  chat_id: string;
+  @PrimaryGeneratedColumn('increment')
+  chat_id: number;
 
   @Column()
-  student_id: string;
+  student_id: number;
 
   @Column({ length: 100 })
   name: string;

@@ -46,7 +46,7 @@ backend/
 - ExamSubject → WeakArea (1:N) / Student·MockExam에 N:1
 - StudyPlan → PlanSlot (1:N)
 - ChatSession → ChatMessage (1:N)
-- 모든 PK는 `@PrimaryGeneratedColumn('uuid')`.
+- 모든 PK는 `@PrimaryGeneratedColumn('increment')` (number 자동 증가).
 
 ## 규칙
 - 신규 엔티티 추가 시 `entities/index.ts`에도 등록.

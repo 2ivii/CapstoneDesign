@@ -13,11 +13,11 @@ import { PlanSlot } from './plan-slot.entity';
 
 @Entity('study_plans')
 export class StudyPlan {
-  @PrimaryGeneratedColumn('uuid')
-  plan_id: string;
+  @PrimaryGeneratedColumn('increment')
+  plan_id: number;
 
   @Column()
-  student_id: string;
+  student_id: number;
 
   @CreateDateColumn()
   created_at: Date;

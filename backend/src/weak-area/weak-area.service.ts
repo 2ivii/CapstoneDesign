@@ -18,7 +18,7 @@ export class WeakAreaService {
    * 학생의 모든 ExamSubject를 순회하며 취약 영역을 재생성한다.
    * 멱등성: 분석 대상 과목의 기존 WeakArea를 지우고 다시 만든다.
    */
-  async analyzeStudent(studentId: string): Promise<WeakArea[]> {
+  async analyzeStudent(studentId: number): Promise<WeakArea[]> {
     const subjects = await this.examSubjectRepo.find({
       where: { student_id: studentId },
     });
