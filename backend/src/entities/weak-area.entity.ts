@@ -10,11 +10,11 @@ import { ExamSubject } from './exam-subject.entity';
 
 @Entity('weak_areas')
 export class WeakArea {
-  @PrimaryGeneratedColumn('uuid')
-  weak_id: string;
+  @PrimaryGeneratedColumn('increment')
+  weak_id: number;
 
   @Column()
-  subject_id: string;
+  subject_id: number;
 
   @Column({ length: 100 })
   unit: string;

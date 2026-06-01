@@ -13,14 +13,14 @@ import { WeakArea } from './weak-area.entity';
 
 @Entity('exam_subjects')
 export class ExamSubject {
-  @PrimaryGeneratedColumn('uuid')
-  subject_id: string;
+  @PrimaryGeneratedColumn('increment')
+  subject_id: number;
 
   @Column()
-  exam_id: string;
+  exam_id: number;
 
   @Column()
-  student_id: string;
+  student_id: number;
 
   @Column({ length: 30 })
   subject: string;

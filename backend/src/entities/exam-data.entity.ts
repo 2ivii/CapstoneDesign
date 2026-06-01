@@ -10,11 +10,11 @@ import { MockExam } from './mock-exam.entity';
 
 @Entity('exam_datas')
 export class ExamData {
-  @PrimaryGeneratedColumn('uuid')
-  data_id: string;
+  @PrimaryGeneratedColumn('increment')
+  data_id: number;
 
   @Column()
-  exam_id: string;
+  exam_id: number;
 
   @Column({ length: 30 })
   subject: string;
