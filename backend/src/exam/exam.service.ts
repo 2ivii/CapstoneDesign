@@ -39,7 +39,7 @@ export class ExamService {
   async extractAndSave(
     studentId: number,
     file: Express.Multer.File,
-  ): Promise<{ exam_id: string; subjects_count: number }> {
+  ): Promise<{ exam_id: number; subjects_count: number }> {
     const student = await this.studentRepo.findOneBy({ student_id: studentId });
     if (!student) throw new BadRequestException('Student not found');
 
@@ -54,9 +54,9 @@ export class ExamService {
         exam_id: mockExam.exam_id,
         student_id: studentId,
         subject: sub.subject,
-        score: sub.score,
-        grade: sub.grade,
-        percent: sub.percentile,
+        score: Math.round(sub.score),
+        grade: Math.round(sub.grade),
+        percent: Math.round(sub.percentile),
         wrong_answer: sub.wrong_answers ?? [],
         correct_rate: sub.correct_rate,
       }),
@@ -67,7 +67,7 @@ export class ExamService {
   }
 
   private async callGeminiOcr(file: Express.Multer.File): Promise<OcrResult> {
-    const model = this.gemini.getGenerativeModel({ model: 'gemini-2.0-flash' });
+    const model = this.gemini.getGenerativeModel({ model: 'gemini-2.5-flash' });
 
     const prompt = `이 이미지는 한국 수능 모의고사 성적표입니다. 다음 JSON 형식으로 정보를 추출해주세요.
 
