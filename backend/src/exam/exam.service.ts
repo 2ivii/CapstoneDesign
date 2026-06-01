@@ -71,12 +71,12 @@ export class ExamService {
 
 ## 과목(subject) 추출 규칙
 - 상단 성적 표의 [영역] 열에서 국어, 수학, 영어, 한국사는 해당 이름 그대로 추출합니다.
-- 탐구 행은 [영역] 열 오른쪽에 세부 과목명이 별도로 표시됩니다(예: 사회, 과학, 생명과학 등). 세부 과목명을 각각 독립된 항목으로 추출합니다. "탐구"라는 이름은 사용하지 않습니다.
+- 탐구 행은 [영역] 열 오른쪽에 세부 과목명이 별도로 표시됩니다. 세부 과목명을 각각 독립된 항목으로 추출합니다. "탐구"라는 이름은 사용하지 않습니다.
 
 ## 각 필드 추출 위치
-- exam_name: 성적표 상단의 시험 전체 명칭 (예: "2026학년도 3월 고1 전국연합학력평가")
-- year: exam_name에서 연도 숫자만 추출 (예: 2026)
-- score: 상단 표의 [원점수 > 배점] 열 값 (숫자)
+- exam_name: 성적표 상단의 시험 전체 명칭 
+- year: exam_name에서 연도 숫자만 추출 
+- score: 상단 표의 [원점수 > 득점] 열 값 
 - grade: 상단 표의 [표준점수에 의한 석차/백분위/등급 > 등급] 열 값 (숫자)
 - percentile: 상단 표의 [표준점수에 의한 석차/백분위/등급 > 전국백분위] 열 값 (숫자)
 - wrong_answers: 하단 [영역/문항] 채점 결과 표에서 해당 과목 행에 X로 표시된 문항 번호만 배열로 추출 (O, △ 등은 제외)
@@ -89,20 +89,24 @@ export class ExamService {
   "subjects": [
     {
       "subject": "과목명",
-      "score": 배점_숫자,
+      "score": 득점_숫자,
       "grade": 등급_숫자,
       "percentile": 전국백분위_숫자,
       "wrong_answers": [X표시_문항번호_숫자_배열],
       "correct_rate": null
     }
   ]
-}`;
+}
+## 주의사항
+- grade는 정수로 반환
+- percent, score는 소수점 포함 숫자로 반환
+- wrong_answers는 정수 배열로 반환, 오답이 없으면 빈 배열 []`;
 
     const base64 = file.buffer.toString('base64');
     const dataUrl = `data:${file.mimetype};base64,${base64}`;
 
     const response = await this.openai.chat.completions.create({
-      model: 'gpt-4o-mini',
+      model: 'gpt-5.4',
       messages: [
         {
           role: 'user',
