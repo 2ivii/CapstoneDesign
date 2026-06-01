@@ -21,8 +21,8 @@ interface OcrResult {
   subjects: SubjectResult[];
 }
 
-interface WrongAnswersResult {
-  wrong_answers: Record<string, number[]>;
+interface OxResult {
+  [subject: string]: string; // 예: { "국어": "OOXOOO..." }
 }
 
 @Injectable()
@@ -48,14 +48,14 @@ export class ExamService {
     const student = await this.studentRepo.findOneBy({ student_id: studentId });
     if (!student) throw new BadRequestException('Student not found');
 
-    const [mainResult, wrongAnswersResult] = await Promise.all([
+    const [mainResult, oxResult] = await Promise.all([
       this.callGptMainScores(file),
-      this.callGptWrongAnswers(file),
+      this.callGptOxStrings(file),
     ]);
 
     const subjects = mainResult.subjects.map((sub) => ({
       ...sub,
-      wrong_answers: wrongAnswersResult.wrong_answers[sub.subject] ?? [],
+      wrong_answers: this.oxToWrongAnswers(oxResult[sub.subject] ?? ''),
     }));
 
     const mockExam = await this.mockExamRepo.save(
@@ -118,7 +118,7 @@ export class ExamService {
     const dataUrl = `data:${file.mimetype};base64,${file.buffer.toString('base64')}`;
 
     const response = await this.openai.chat.completions.create({
-      model: 'gpt-5.5',
+      model: 'gpt-5.4-mini',
       messages: [
         {
           role: 'user',
@@ -142,51 +142,57 @@ export class ExamService {
     }
   }
 
-  private async callGptWrongAnswers(file: Express.Multer.File): Promise<WrongAnswersResult> {
+  private oxToWrongAnswers(ox: string): number[] {
+    return [...ox.toUpperCase()].reduce<number[]>((acc, ch, i) => {
+      if (ch === 'X') acc.push(i + 1);
+      return acc;
+    }, []);
+  }
+
+  private async callGptOxStrings(file: Express.Multer.File): Promise<OxResult> {
     const prompt = `이 이미지는 한국 모의고사 성적표의 하단 채점 결과 표입니다.
 
-## 표 구조
-각 과목(국어, 수학, 영어, 한국사, 탐구)마다 4개의 행이 반복됩니다:
-- 1행 "답안": 숫자 또는 알파벳
-- 2행 "정답": 숫자 또는 알파벳
-- 3행 "채점결과": O 또는 X만 있음 ← 이 행만 읽으세요
-- 4행 "정답률": B, C, D, E 같은 알파벳 등급 ← 무시
+## 작업
+각 과목의 "채점결과" 행에 있는 O와 X를 왼쪽부터 오른쪽으로 순서대로 나열하세요.
 
-열 헤더가 문항 번호(1, 2, 3, ...)입니다.
+## 채점결과 행 찾는 법
+각 과목마다 4행이 반복됩니다:
+- 1행 "답안"
+- 2행 "정답"
+- 3행 "채점결과" ← 이 행만 읽으세요. O와 X만 있습니다.
+- 4행 "정답률" ← B, C, D 등 알파벳. 무시하세요.
 
-## O와 X 구분 가이드
-- O: 동그란 원형, 안이 비어있음, 둥글게 생김
-- X: 두 직선이 교차, 대각선 두 줄이 겹침
-- 이 두 기호만 존재합니다. 다른 기호는 없습니다.
-- 헷갈리면 바로 위의 답안 행과 정답 행을 비교하세요. 답안=정답이면 O, 다르면 X입니다.
+## O와 X 구분
+- O: 동그란 원형
+- X: 두 직선이 교차
 
-## 과목별 문항 수
-- 국어: 1~45번
-- 수학: 1~30번
-- 영어: 1~45번
-- 한국사: 1~20번
-- 탐구: 과목별 1~25번 (사회, 과학 등 별도 표)
+## 읽기 방법 (중요!)
+한 번에 읽지 말고 구간을 나눠서 읽으세요:
+- 1~10번, 11~20번, 21~30번, 31~40번, 41~45번
+- 각 구간을 읽은 뒤 개수를 세서 맞는지 확인하세요
 
-## 추출 대상
-3행 "채점결과"에서 X인 문항 번호만 추출하세요.
+## 과목별 문항 수 (반드시 일치해야 함)
+- 국어: 정확히 45개
+- 수학: 정확히 30개
+- 영어: 정확히 45개
+- 한국사: 정확히 20개
+- 탐구: 과목별 정확히 25개 (사회, 과학 등 별도 표)
 
 ## 출력 형식
-JSON만 반환하세요. 마크다운 코드블록이나 설명 텍스트는 절대 포함하지 마세요.
+JSON만 반환하세요. 마크다운 코드블록이나 설명 없이 JSON만 출력하세요.
 {
-  "wrong_answers": {
-    "국어": [문항번호_배열],
-    "수학": [문항번호_배열],
-    "영어": [문항번호_배열],
-    "한국사": [문항번호_배열],
-    "사회": [문항번호_배열],
-    "과학": [문항번호_배열]
-  }
+  "국어": "OOXOO...(45자)",
+  "수학": "XOOOO...(30자)",
+  "영어": "OOXOO...(45자)",
+  "한국사": "OOOOO...(20자)",
+  "사회": "OOXOO...(25자)",
+  "과학": "XOOOO...(25자)"
 }
 
 ## 주의사항
-- 문항 번호는 정수 배열, 오답 없으면 []
-- 탐구 과목명은 표에 적힌 세부 과목명 그대로 사용
-- 4행 정답률(B, C, D 등)을 X로 착각하지 마세요. 채점결과는 반드시 3행입니다`;
+- 각 문자열의 길이가 과목 문항 수와 반드시 일치해야 합니다
+- 출력 전에 각 과목의 글자 수를 세서 검증하세요
+- O와 X 외에 다른 문자는 사용하지 마세요`;
 
     const dataUrl = `data:${file.mimetype};base64,${file.buffer.toString('base64')}`;
 
@@ -209,9 +215,9 @@ JSON만 반환하세요. 마크다운 코드블록이나 설명 텍스트는 절
       .replace(/\n?```$/, '');
 
     try {
-      return JSON.parse(text) as WrongAnswersResult;
+      return JSON.parse(text) as OxResult;
     } catch {
-      throw new BadRequestException(`GPT 오답 파싱 실패: ${text.slice(0, 200)}`);
+      throw new BadRequestException(`GPT 채점결과 파싱 실패: ${text.slice(0, 200)}`);
     }
   }
 }
