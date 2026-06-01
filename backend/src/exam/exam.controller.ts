@@ -1,4 +1,4 @@
-import { Controller, Post, Param, UploadedFile, UseInterceptors } from '@nestjs/common';
+import { Controller, Post, Param, ParseIntPipe, UploadedFile, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ExamService } from './exam.service';
 
@@ -9,7 +9,7 @@ export class ExamController {
   @Post('upload')
   @UseInterceptors(FileInterceptor('file'))
   async uploadExamImage(
-    @Param('studentId') studentId: string,
+    @Param('studentId', ParseIntPipe) studentId: number,
     @UploadedFile() file: Express.Multer.File,
   ) {
     return this.examService.extractAndSave(studentId, file);

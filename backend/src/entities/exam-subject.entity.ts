@@ -19,8 +19,8 @@ export class ExamSubject {
   @Column()
   exam_id: string;
 
-  @Column()
-  student_id: string;
+  @Column('int')
+  student_id: number;
 
   @Column({ length: 30 })
   subject: string;
@@ -38,7 +38,7 @@ export class ExamSubject {
   wrong_answer: number[];
 
   @Column('decimal', { precision: 5, scale: 2, nullable: true })
-  correct_rate: number;
+  correct_rate: number | null;
 
   @CreateDateColumn()
   created_at: Date;

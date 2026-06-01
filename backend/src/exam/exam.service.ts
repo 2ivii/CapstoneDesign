@@ -33,11 +33,11 @@ export class ExamService {
     @InjectRepository(Student)
     private readonly studentRepo: Repository<Student>,
   ) {
-    this.gemini = new GoogleGenerativeAI(config.get('GEMINI_API_KEY'));
+    this.gemini = new GoogleGenerativeAI(config.get('GEMINI_API_KEY') ?? '');
   }
 
   async extractAndSave(
-    studentId: string,
+    studentId: number,
     file: Express.Multer.File,
   ): Promise<{ exam_id: string; subjects_count: number }> {
     const student = await this.studentRepo.findOneBy({ student_id: studentId });

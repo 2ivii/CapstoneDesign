@@ -12,8 +12,8 @@ import { ChatSession } from './chat-session.entity';
 
 @Entity('students')
 export class Student {
-  @PrimaryGeneratedColumn('uuid')
-  student_id: string;
+  @PrimaryGeneratedColumn('increment')
+  student_id: number;
 
   @Column('int', { array: true, nullable: true })
   goal_score: number[];
