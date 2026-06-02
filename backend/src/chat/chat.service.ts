@@ -17,6 +17,8 @@ import {
   MessageDto,
 } from './dto/chat-response.dto';
 
+const KNOWN_SUBJECTS = ['수학', '국어', '영어', '과학', '사회'];
+
 @Injectable()
 export class ChatService {
   constructor(
@@ -46,14 +48,21 @@ export class ChatService {
       conversationHistory: [],
     });
 
+    const baseResponse: SolveResponseDto = {
+      subject: result.subject,
+      solution: result.solution,
+      conceptTags: result.conceptTags,
+      confidence: result.confidence,
+      problemCount: result.problemCount,
+      isValid: result.isValid,
+      errorMessage: result.errorMessage,
+    };
+
     // studentId 없으면 Phase 1 동작 (세션 저장 스킵)
-    if (!studentId) {
-      return {
-        subject: result.subject,
-        solution: result.solution,
-        conceptTags: result.conceptTags,
-      };
-    }
+    if (!studentId) return baseResponse;
+
+    // 이미지 검증 실패 시 세션 생성 불필요
+    if (!result.isValid) return baseResponse;
 
     let session: ChatSession;
     if (chatId) {
@@ -85,12 +94,7 @@ export class ChatService {
       }),
     );
 
-    return {
-      chatId: session.chat_id,
-      subject: result.subject,
-      solution: result.solution,
-      conceptTags: result.conceptTags,
-    };
+    return { ...baseResponse, chatId: session.chat_id };
   }
 
   async followup(dto: FollowupRequestDto): Promise<FollowupResponseDto> {
@@ -98,6 +102,9 @@ export class ChatService {
       where: { chat_id: dto.chatId },
     });
     if (!session) throw new NotFoundException('세션을 찾을 수 없습니다.');
+
+    // 세션 이름에서 과목 추출 (예: "수학 문제풀이" → "수학")
+    const subjectFromName = KNOWN_SUBJECTS.find((s) => session.name.startsWith(s));
 
     const dbMessages = await this.messageRepo.find({
       where: { chat_id: dto.chatId },
@@ -113,7 +120,7 @@ export class ChatService {
     const result = await graph.invoke({
       image: '',
       mimeType: '',
-      subject: '',
+      subject: subjectFromName ?? '',
       userMessage: dto.message,
       conversationHistory,
     });
@@ -138,6 +145,7 @@ export class ChatService {
       chatId: dto.chatId,
       solution: result.solution,
       conceptTags: result.conceptTags,
+      confidence: result.confidence,
     };
   }
 
