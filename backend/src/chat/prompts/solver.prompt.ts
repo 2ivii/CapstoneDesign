@@ -74,6 +74,16 @@ export const VALIDATE_IMAGE_PROMPT = `이 이미지에 시험 또는 학습 문�
 
 export const DETECT_PROBLEMS_PROMPT = `이 이미지에 시험 문제가 몇 개 포함되어 있나요? 숫자만 답하세요.`;
 
+export const IDENTIFY_QUESTION_PROMPT = `이 이미지의 시험 정보와 문항 번호를 파악하세요.
+반드시 아래 JSON 형식으로만 답하세요 (다른 텍스트 없이):
+{"exam_id": "연도_월_시행주체_학년", "question_no": 숫자}
+
+형식 예시:
+- 2026학년도 3월 교육청 고1 → {"exam_id": "2026_03_교육청_고1", "question_no": 21}
+- 2025학년도 6월 평가원 고3 → {"exam_id": "2025_06_평가원_고3", "question_no": 29}
+- 2025학년도 수능 → {"exam_id": "2025_수능", "question_no": 15}
+- 시험 정보를 파악할 수 없으면 → {"exam_id": "", "question_no": 0}`;
+
 export const VERIFY_SOLUTION_PROMPT = `아래 풀이를 검증하세요.
 1. 계산 과정에 오류가 있는지 확인
 2. 최종 답이 선택지 범위 내인지 확인 (객관식인 경우)

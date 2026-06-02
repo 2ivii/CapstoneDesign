@@ -7,3 +7,4 @@ export { StudyPlan } from './study-plan.entity';
 export { PlanSlot } from './plan-slot.entity';
 export { ChatSession } from './chat-session.entity';
 export { ChatMessage } from './chat-message.entity';
+export { SolutionCache } from './solution-cache.entity';
