@@ -20,6 +20,15 @@ import {
 
 const KNOWN_SUBJECTS = ['수학', '국어', '영어', '과학', '사회'];
 
+function buildExamId(dto: SolveRequestDto): string {
+  const { examYear, examMonth, examOrg, examGrade } = dto;
+  if (!examYear || !examOrg) return '';
+  if (examOrg === '수능') return `${examYear}_수능`;
+  if (!examMonth || !examGrade) return '';
+  const month = examMonth.padStart(2, '0');
+  return `${examYear}_${month}_${examOrg}_${examGrade}`;
+}
+
 @Injectable()
 export class ChatService {
   private readonly graph: ReturnType<typeof buildChatGraph>;
@@ -46,12 +55,17 @@ export class ChatService {
     const studentId = dto.studentId ? Number(dto.studentId) : undefined;
     const chatId = dto.chatId ? Number(dto.chatId) : undefined;
 
+    const examId = buildExamId(dto);
+    const questionNo = dto.questionNo ? Number(dto.questionNo) : 0;
+
     const result = await this.graph.invoke({
       image,
       mimeType,
       subject: dto.subject ?? '',
       userMessage: dto.message,
       conversationHistory: [],
+      examId,
+      questionNo,
     });
 
     const baseResponse: SolveResponseDto = {

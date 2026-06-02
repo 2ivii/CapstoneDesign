@@ -170,7 +170,8 @@ async function classifySubject(state: GraphState): Promise<Partial<GraphState>> 
 // ── 시험/문항 식별 ─────────────────────────────────────────────────────────────
 
 async function identifyQuestion(state: GraphState): Promise<Partial<GraphState>> {
-  if (!state.image) return { examId: '', questionNo: 0 };
+  // 사용자가 직접 입력했거나 이미지가 없으면 LLM 호출 스킵
+  if (!state.image || state.examId) return {};
 
   const model = new ChatOpenAI({
     model: process.env.CHAT_MODEL ?? 'gpt-4o-mini',
