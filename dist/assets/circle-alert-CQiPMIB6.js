@@ -1,4 +1,4 @@
-import{c as e}from"./Sidebar.vue_vue_type_script_setup_true_lang-CjjHdLTy.js";/**
+import{c as e}from"./Sidebar.vue_vue_type_script_setup_true_lang-DCkFWlG5.js";/**
  * @license lucide-vue-next v0.468.0 - ISC
  *
  * This source code is licensed under the ISC license.

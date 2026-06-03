@@ -351,14 +351,20 @@ const API_BASE_URL =
     ?.VITE_API_BASE_URL ?? 'http://localhost:3000'
 
 const subjectColors: Record<string, string> = {
-  korean: '#10b981',
-  math: '#3b82f6',
-  english: '#8b5cf6',
-  science1: '#f59e0b',
+  korean: '#f59e0b',
+  math: '#10b981',
+  english: '#3b82f6',
+  science1: '#8b5cf6',
   science2: '#06b6d4',
   history: '#ec4899',
-  사회: '#f59e0b',
+  국어: '#f59e0b',
+  수학: '#10b981',
+  영어: '#3b82f6',
+  사회: '#f97316',
   과학: '#06b6d4',
+  한국사: '#ec4899',
+  생명과학1: '#8b5cf6',
+  지구과학1: '#06b6d4',
 }
 
 const subjectOrder = ['korean', 'math', 'english', '사회', '과학', 'history']
