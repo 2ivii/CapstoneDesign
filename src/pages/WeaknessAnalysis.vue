@@ -288,13 +288,17 @@
           >
             ← 이전 단계 (틀린 문항 체크)
           </button>
-          <button
-            @click="$router.push('/ai-planner')"
-            class="bg-purple-600 hover:bg-purple-700 text-white px-8 py-3 rounded-lg flex items-center gap-2"
-          >
-            <Sparkles :size="16" />
-            AI 학습 플래너 생성 →
-          </button>
+          <div class="flex flex-col items-end gap-1">
+            <button
+              @click="generateAndNavigate"
+              :disabled="isPlanGenerating"
+              class="bg-purple-600 hover:bg-purple-700 disabled:opacity-60 text-white px-8 py-3 rounded-lg flex items-center gap-2"
+            >
+              <Sparkles :size="16" :class="isPlanGenerating ? 'animate-spin' : ''" />
+              {{ isPlanGenerating ? 'AI 플래너 생성 중...' : 'AI 학습 플래너 생성 →' }}
+            </button>
+            <p v-if="planError" class="text-red-500 text-xs">{{ planError }}</p>
+          </div>
         </div>
       </div>
     </div>
@@ -303,8 +307,11 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import Sidebar from '@/components/Sidebar.vue'
 import { ArrowLeft, Target, BookOpen, TrendingUp, TrendingDown, AlertCircle, Sparkles } from 'lucide-vue-next'
+
+const router = useRouter()
 
 type Trend = 'up' | 'down'
 type Difficulty = '상' | '중' | '하'
@@ -382,6 +389,8 @@ const emptyAnalysis: SubjectAnalysis = {
 
 const selectedSubject = ref('')
 const isLoading = ref(true)
+const isPlanGenerating = ref(false)
+const planError = ref('')
 const errorMessage = ref('')
 const analysisData = ref<Record<string, SubjectAnalysis>>({})
 
@@ -442,6 +451,27 @@ onMounted(async () => {
     isLoading.value = false
   }
 })
+
+async function generateAndNavigate() {
+  isPlanGenerating.value = true
+  planError.value = ''
+  try {
+    const res = await fetch(`${API_BASE_URL}/students/${STUDENT_ID}/study-plans/generate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    })
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({})) as { message?: string }
+      throw new Error(body.message ?? `플래너 생성 실패 (${res.status})`)
+    }
+    await router.push('/ai-planner')
+  } catch (e) {
+    planError.value = e instanceof Error ? e.message : '플래너 생성 중 오류가 발생했습니다.'
+  } finally {
+    isPlanGenerating.value = false
+  }
+}
 
 const scoreLinePoints = computed(() => {
   const scores = currentAnalysis.value.recentScores
