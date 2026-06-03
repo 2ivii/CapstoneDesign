@@ -34,7 +34,15 @@
             </button>
           </div>
 
-          <div class="space-y-6">
+          <div v-if="isLoading" class="bg-white rounded-xl p-8 shadow-sm text-center text-gray-600">
+            약점 분석 데이터를 불러오는 중입니다.
+          </div>
+
+          <div v-else-if="errorMessage" class="bg-white rounded-xl p-8 shadow-sm text-center text-red-600">
+            {{ errorMessage }}
+          </div>
+
+          <div v-else class="space-y-6">
             <!-- Overview Cards -->
             <div class="grid grid-cols-4 gap-4">
               <div class="bg-white rounded-xl p-6 shadow-sm">
@@ -174,29 +182,29 @@
                   <circle
                     v-for="(s, i) in currentAnalysis.recentScores"
                     :key="'sd' + i"
-                    :cx="65 + i * (280 / (currentAnalysis.recentScores.length - 1))"
+                    :cx="getScoreX(i, currentAnalysis.recentScores.length)"
                     :cy="240 - (s.score / 100) * 220"
                     r="5"
                     :fill="currentSubjectData.color"
                   >
-                    <title>{{ s.exam }}월 모의고사 - 점수: {{ s.score }}점</title>
+                    <title>{{ s.exam }} 모의고사 - 점수: {{ s.score }}점</title>
                   </circle>
                   <!-- Grade dots + tooltips -->
                   <circle
                     v-for="(s, i) in currentAnalysis.recentScores"
                     :key="'gd' + i"
-                    :cx="65 + i * (280 / (currentAnalysis.recentScores.length - 1))"
+                    :cx="getScoreX(i, currentAnalysis.recentScores.length)"
                     :cy="240 - ((9 - s.grade) / 8) * 220"
                     r="5"
                     fill="#94a3b8"
                   >
-                    <title>{{ s.exam }}월 모의고사 - 등급: {{ s.grade }}등급</title>
+                    <title>{{ s.exam }} 모의고사 - 등급: {{ s.grade }}등급</title>
                   </circle>
                   <!-- X labels -->
                   <text
                     v-for="(s, i) in currentAnalysis.recentScores"
                     :key="'xl' + i"
-                    :x="65 + i * (280 / (currentAnalysis.recentScores.length - 1))"
+                    :x="getScoreX(i, currentAnalysis.recentScores.length)"
                     y="258"
                     font-size="10"
                     fill="#6b7280"
@@ -294,157 +302,145 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import Sidebar from '@/components/Sidebar.vue'
 import { ArrowLeft, Target, BookOpen, TrendingUp, TrendingDown, AlertCircle, Sparkles } from 'lucide-vue-next'
 
-const selectedSubject = ref('korean')
+type Trend = 'up' | 'down'
+type Difficulty = '상' | '중' | '하'
 
-const subjects = [
-  { id: 'korean', name: '국어', color: '#10b981' },
-  { id: 'math', name: '수학', color: '#3b82f6' },
-  { id: 'english', name: '영어', color: '#8b5cf6' },
-  { id: 'science1', name: '생명과학1', color: '#f59e0b' },
-  { id: 'science2', name: '지구과학1', color: '#06b6d4' },
-  { id: 'history', name: '한국사', color: '#ec4899' },
-]
-
-const analysisData: Record<string, any> = {
-  korean: {
-    overallAccuracy: 78,
-    grade: '2등급',
-    trend: 'up',
-    unitAccuracy: [
-      { unit: '문학', accuracy: 85, total: 15, correct: 13 },
-      { unit: '독서', accuracy: 72, total: 20, correct: 14 },
-      { unit: '언어와 매체', accuracy: 75, total: 10, correct: 7 },
-    ],
-    weakConcepts: [
-      { concept: '고전소설 주제 파악', wrongCount: 4, difficulty: '상' },
-      { concept: '비문학 추론 문제', wrongCount: 6, difficulty: '상' },
-      { concept: '문법 - 음운 변동', wrongCount: 3, difficulty: '중' },
-    ],
-    recentScores: [
-      { exam: '3월', score: 72, grade: 3 },
-      { exam: '4월', score: 76, grade: 2 },
-      { exam: '5월', score: 78, grade: 2 },
-    ],
-  },
-  math: {
-    overallAccuracy: 65,
-    grade: '3등급',
-    trend: 'down',
-    unitAccuracy: [
-      { unit: '수열', accuracy: 55, total: 8, correct: 4 },
-      { unit: '미분', accuracy: 70, total: 10, correct: 7 },
-      { unit: '적분', accuracy: 68, total: 7, correct: 5 },
-      { unit: '기하', accuracy: 60, total: 5, correct: 3 },
-    ],
-    weakConcepts: [
-      { concept: '수열의 극한 응용', wrongCount: 5, difficulty: '상' },
-      { concept: '적분을 이용한 넓이', wrongCount: 4, difficulty: '상' },
-      { concept: '도함수 활용', wrongCount: 3, difficulty: '중' },
-    ],
-    recentScores: [
-      { exam: '3월', score: 70, grade: 2 },
-      { exam: '4월', score: 68, grade: 3 },
-      { exam: '5월', score: 65, grade: 3 },
-    ],
-  },
-  english: {
-    overallAccuracy: 88,
-    grade: '1등급',
-    trend: 'up',
-    unitAccuracy: [
-      { unit: '듣기', accuracy: 95, total: 17, correct: 16 },
-      { unit: '독해-주제', accuracy: 85, total: 10, correct: 8 },
-      { unit: '독해-빈칸', accuracy: 80, total: 8, correct: 6 },
-      { unit: '독해-순서', accuracy: 90, total: 10, correct: 9 },
-    ],
-    weakConcepts: [
-      { concept: '빈칸 추론 (고난도)', wrongCount: 2, difficulty: '상' },
-      { concept: '장문 독해', wrongCount: 2, difficulty: '중' },
-      { concept: '어법 판단', wrongCount: 1, difficulty: '중' },
-    ],
-    recentScores: [
-      { exam: '3월', score: 84, grade: 1 },
-      { exam: '4월', score: 86, grade: 1 },
-      { exam: '5월', score: 88, grade: 1 },
-    ],
-  },
-  science1: {
-    overallAccuracy: 75,
-    grade: '2등급',
-    trend: 'up',
-    unitAccuracy: [
-      { unit: '생명과학의 이해', accuracy: 90, total: 3, correct: 3 },
-      { unit: '세포와 연속성', accuracy: 70, total: 6, correct: 4 },
-      { unit: '항상성과 조절', accuracy: 65, total: 7, correct: 5 },
-      { unit: '유전', accuracy: 80, total: 4, correct: 3 },
-    ],
-    weakConcepts: [
-      { concept: '호르몬과 항상성', wrongCount: 3, difficulty: '상' },
-      { concept: '유전자 발현', wrongCount: 2, difficulty: '상' },
-      { concept: '신경계', wrongCount: 2, difficulty: '중' },
-    ],
-    recentScores: [
-      { exam: '3월', score: 70, grade: 3 },
-      { exam: '4월', score: 73, grade: 2 },
-      { exam: '5월', score: 75, grade: 2 },
-    ],
-  },
-  science2: {
-    overallAccuracy: 70,
-    grade: '2등급',
-    trend: 'down',
-    unitAccuracy: [
-      { unit: '고체 지구', accuracy: 75, total: 6, correct: 4 },
-      { unit: '대기와 해양', accuracy: 65, total: 7, correct: 5 },
-      { unit: '우주', accuracy: 72, total: 7, correct: 5 },
-    ],
-    weakConcepts: [
-      { concept: '판 구조론', wrongCount: 3, difficulty: '상' },
-      { concept: '기압과 날씨', wrongCount: 4, difficulty: '중' },
-      { concept: '별의 특성', wrongCount: 2, difficulty: '중' },
-    ],
-    recentScores: [
-      { exam: '3월', score: 75, grade: 2 },
-      { exam: '4월', score: 72, grade: 2 },
-      { exam: '5월', score: 70, grade: 2 },
-    ],
-  },
-  history: {
-    overallAccuracy: 82,
-    grade: '2등급',
-    trend: 'up',
-    unitAccuracy: [
-      { unit: '선사·고대', accuracy: 85, total: 5, correct: 4 },
-      { unit: '고려 시대', accuracy: 80, total: 5, correct: 4 },
-      { unit: '조선 시대', accuracy: 78, total: 5, correct: 4 },
-      { unit: '근현대사', accuracy: 88, total: 5, correct: 4 },
-    ],
-    weakConcepts: [
-      { concept: '고대 국가의 발전', wrongCount: 2, difficulty: '중' },
-      { concept: '조선 시대 정치 제도', wrongCount: 1, difficulty: '중' },
-      { concept: '근대 개화기', wrongCount: 1, difficulty: '하' },
-    ],
-    recentScores: [
-      { exam: '3월', score: 78, grade: 2 },
-      { exam: '4월', score: 80, grade: 2 },
-      { exam: '5월', score: 82, grade: 2 },
-    ],
-  },
+type UnitAccuracy = {
+  unit: string
+  accuracy: number
+  total: number
+  correct: number
 }
 
-const currentAnalysis = computed(() => analysisData[selectedSubject.value])
-const currentSubjectData = computed(() => subjects.find(s => s.id === selectedSubject.value)!)
+type WeakConcept = {
+  concept: string
+  wrongCount: number
+  difficulty: Difficulty
+}
+
+type RecentScore = {
+  exam: string
+  score: number
+  grade: number
+}
+
+type SubjectAnalysis = {
+  id: string
+  name: string
+  overallAccuracy: number
+  grade: string
+  trend: Trend
+  unitAccuracy: UnitAccuracy[]
+  weakConcepts: WeakConcept[]
+  recentScores: RecentScore[]
+}
+
+type SubjectTab = {
+  id: string
+  name: string
+  color: string
+}
+
+const STUDENT_ID = 1
+const API_BASE_URL =
+  (import.meta as ImportMeta & { env?: { VITE_API_BASE_URL?: string } }).env
+    ?.VITE_API_BASE_URL ?? 'http://localhost:3000'
+
+const subjectColors: Record<string, string> = {
+  korean: '#10b981',
+  math: '#3b82f6',
+  english: '#8b5cf6',
+  science1: '#f59e0b',
+  science2: '#06b6d4',
+  history: '#ec4899',
+  사회: '#f59e0b',
+  과학: '#06b6d4',
+}
+
+const subjectOrder = ['korean', 'math', 'english', '사회', '과학', 'history']
+
+const emptyAnalysis: SubjectAnalysis = {
+  id: '',
+  name: '',
+  overallAccuracy: 0,
+  grade: '-',
+  trend: 'up',
+  unitAccuracy: [],
+  weakConcepts: [],
+  recentScores: [],
+}
+
+const selectedSubject = ref('')
+const isLoading = ref(true)
+const errorMessage = ref('')
+const analysisData = ref<Record<string, SubjectAnalysis>>({})
+
+const subjects = computed<SubjectTab[]>(() =>
+  Object.values(analysisData.value)
+    .sort((a, b) => {
+      const aIndex = subjectOrder.indexOf(a.id)
+      const bIndex = subjectOrder.indexOf(b.id)
+      const normalizedAIndex = aIndex === -1 ? subjectOrder.length : aIndex
+      const normalizedBIndex = bIndex === -1 ? subjectOrder.length : bIndex
+
+      return normalizedAIndex - normalizedBIndex || a.name.localeCompare(b.name)
+    })
+    .map((subject) => ({
+      id: subject.id,
+      name: subject.name,
+      color: subjectColors[subject.id] ?? '#64748b',
+    })),
+)
+
+const currentAnalysis = computed(() => analysisData.value[selectedSubject.value] ?? emptyAnalysis)
+const currentSubjectData = computed(
+  () => subjects.value.find((subject) => subject.id === selectedSubject.value) ?? {
+    id: '',
+    name: '',
+    color: '#64748b',
+  },
+)
+
+const getScoreX = (index: number, total: number) => {
+  if (total <= 1) {
+    return 205
+  }
+
+  return 65 + index * (280 / (total - 1))
+}
+
+onMounted(async () => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/students/${STUDENT_ID}/weak-areas/summary`)
+    if (!response.ok) {
+      throw new Error(`약점 분석 데이터를 불러오지 못했습니다. (${response.status})`)
+    }
+
+    const data = await response.json() as { subjects?: SubjectAnalysis[] }
+    const nextAnalysisData = Object.fromEntries(
+      (data.subjects ?? []).map((subject) => [subject.id, subject]),
+    )
+
+    analysisData.value = nextAnalysisData
+    selectedSubject.value = subjects.value[0]?.id ?? ''
+    errorMessage.value = data.subjects?.length ? '' : '조회할 과목 데이터가 없습니다.'
+  } catch (error) {
+    errorMessage.value = error instanceof Error
+      ? error.message
+      : '약점 분석 데이터를 불러오지 못했습니다.'
+  } finally {
+    isLoading.value = false
+  }
+})
 
 const scoreLinePoints = computed(() => {
   const scores = currentAnalysis.value.recentScores
-  const n = scores.length
-  const step = n > 1 ? 280 / (n - 1) : 0
-  return scores.map((s: any, i: number) => {
-    const x = 65 + i * step
+  return scores.map((s, i) => {
+    const x = getScoreX(i, scores.length)
     const y = 240 - (s.score / 100) * 220
     return `${x},${y}`
   }).join(' ')
@@ -452,10 +448,8 @@ const scoreLinePoints = computed(() => {
 
 const gradeLinePoints = computed(() => {
   const scores = currentAnalysis.value.recentScores
-  const n = scores.length
-  const step = n > 1 ? 280 / (n - 1) : 0
-  return scores.map((s: any, i: number) => {
-    const x = 65 + i * step
+  return scores.map((s, i) => {
+    const x = getScoreX(i, scores.length)
     const y = 240 - ((9 - s.grade) / 8) * 220
     return `${x},${y}`
   }).join(' ')

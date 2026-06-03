@@ -68,18 +68,33 @@ export class WeakAreaService {
     return created;
   }
 
-  async getSummary(studentId: number): Promise<{ subjects: SubjectSummary[] }> {
-    const subjects = await this.examSubjectRepo
+  async getSummary(
+    studentId: number,
+    subject?: string,
+  ): Promise<{ subjects: SubjectSummary[] }> {
+    const normalizedSubject = subject?.trim();
+    const query = this.examSubjectRepo
       .createQueryBuilder('subject')
       .leftJoinAndSelect('subject.mock_exam', 'mockExam')
       .where('subject.student_id = :studentId', { studentId })
       .orderBy('subject.subject', 'ASC')
       .addOrderBy('mockExam.year', 'DESC')
-      .addOrderBy('mockExam.created_at', 'DESC')
-      .addOrderBy('subject.created_at', 'DESC')
-      .getMany();
+      .addOrderBy('mockExam.exam_month', 'DESC')
+      .addOrderBy('subject.created_at', 'DESC');
+
+    if (normalizedSubject) {
+      query.andWhere('subject.subject = :subject', { subject: normalizedSubject });
+    }
+
+    const subjects = await query.getMany();
 
     if (subjects.length === 0) {
+      if (normalizedSubject) {
+        throw new NotFoundException(
+          `학생(${studentId})의 ${normalizedSubject} 과목 데이터가 없습니다.`,
+        );
+      }
+
       throw new NotFoundException(
         `학생(${studentId})의 시험 과목 데이터가 없습니다.`,
       );
@@ -184,7 +199,8 @@ export class WeakAreaService {
         total: stats.total,
         correct: stats.correct,
       }))
-      .sort((a, b) => a.accuracy - b.accuracy || b.total - a.total);
+      .sort((a, b) => a.accuracy - b.accuracy || b.total - a.total)
+      .slice(0, 3);
 
     const weakConcepts = [...unitStats.entries()]
       .filter(([, stats]) => stats.wrong > 0)
@@ -193,7 +209,8 @@ export class WeakAreaService {
         wrongCount: stats.wrong,
         difficulty: this.toDifficulty(stats.wrong),
       }))
-      .sort((a, b) => b.wrongCount - a.wrongCount || a.concept.localeCompare(b.concept));
+      .sort((a, b) => b.wrongCount - a.wrongCount || a.concept.localeCompare(b.concept))
+      .slice(0, 3);
 
     const recentScores = [...recentSubjects]
       .reverse()
@@ -293,6 +310,10 @@ export class WeakAreaService {
   }
 
   private getExamLabel(subject: ExamSubject): string {
+    if (subject.mock_exam?.exam_month) {
+      return `${subject.mock_exam.exam_month}월`;
+    }
+
     const examName = subject.mock_exam?.name ?? '';
     const monthMatch = examName.match(/(\d{1,2})월/);
     if (monthMatch) {

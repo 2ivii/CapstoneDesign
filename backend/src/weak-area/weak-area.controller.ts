@@ -1,5 +1,5 @@
-import { Controller, Get, Param, ParseIntPipe, Post } from '@nestjs/common';
-import { ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
+import { Controller, Get, Param, ParseIntPipe, Post, Query } from '@nestjs/common';
+import { ApiOperation, ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { WeakAreaService } from './weak-area.service';
 
 @ApiTags('취약영역 분석')
@@ -30,7 +30,16 @@ export class WeakAreaController {
       '학생의 최근 3회 과목 성적과 문제 메타데이터를 기반으로 전체 정답률, 단원별 정답률, 취약 개념, 최근 성적 추이를 조회한다.',
   })
   @ApiParam({ name: 'studentId', description: '학생 ID', type: Number })
-  getSummary(@Param('studentId', ParseIntPipe) studentId: number) {
-    return this.weakAreaService.getSummary(studentId);
+  @ApiQuery({
+    name: 'subject',
+    description: '조회할 과목명. 생략하면 전체 과목을 조회한다.',
+    required: false,
+    example: '수학',
+  })
+  getSummary(
+    @Param('studentId', ParseIntPipe) studentId: number,
+    @Query('subject') subject?: string,
+  ) {
+    return this.weakAreaService.getSummary(studentId, subject);
   }
 }
