@@ -19,6 +19,10 @@ export class MockExam {
   @Column('int')
   year: number;
 
+  // 모의고사 시행 월 (예: 3, 6, 9, 11)
+  @Column('int')
+  exam_month: number;
+
   // 대상 학년 (1 = 고1, 2 = 고2, 3 = 고3)
   @Column('int')
   grade_level: number;
