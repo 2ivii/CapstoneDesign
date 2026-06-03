@@ -142,7 +142,10 @@
                     <ImageIcon :size="32" />
                     <p class="text-xs mt-1">이미지 첨부됨</p>
                   </div>
-                  <div class="whitespace-pre-wrap text-sm">{{ message.content }}</div>
+                  <div
+                    class="chat-message text-sm"
+                    v-html="renderMessage(message.content)"
+                  />
                   <div :class="['text-xs mt-2', message.role === 'user' ? 'text-emerald-100' : 'text-gray-500']">
                     {{ formatTime(message.timestamp) }}
                   </div>
@@ -210,11 +213,95 @@
 
 <script setup lang="ts">
 import { ref, computed, nextTick, watch } from 'vue'
+import MarkdownIt from 'markdown-it'
+import type StateBlock from 'markdown-it/lib/rules_block/state_block.mjs'
+import type StateInline from 'markdown-it/lib/rules_inline/state_inline.mjs'
+import type Token from 'markdown-it/lib/token.mjs'
+import katex from 'katex'
+import DOMPurify from 'dompurify'
+import 'katex/dist/katex.min.css'
 import Sidebar from '@/components/Sidebar.vue'
 import {
   ArrowLeft, Send, Sparkles, Camera, Upload, X, Plus,
   MessageSquare, Trash2, Image as ImageIcon
 } from 'lucide-vue-next'
+
+const renderKatex = (source: string, displayMode: boolean) =>
+  katex.renderToString(source, {
+    displayMode,
+    throwOnError: false,
+    strict: 'ignore',
+  })
+
+type MarkdownItInstance = ReturnType<typeof MarkdownIt>
+
+const markdownKatex = (md: MarkdownItInstance): void => {
+  md.inline.ruler.before('escape', 'math_inline', (state: StateInline, silent: boolean) => {
+    if (state.src.charCodeAt(state.pos) !== 0x24) return false
+    if (state.src.charCodeAt(state.pos + 1) === 0x24) return false
+
+    const start = state.pos + 1
+    const end = state.src.indexOf('$', start)
+    if (end === -1 || end === start) return false
+    if (state.src.charCodeAt(end - 1) === 0x5c) return false
+
+    if (!silent) {
+      const token = state.push('math_inline', 'math', 0)
+      token.content = state.src.slice(start, end)
+    }
+
+    state.pos = end + 1
+    return true
+  })
+
+  md.block.ruler.before('fence', 'math_block', (
+    state: StateBlock,
+    startLine: number,
+    endLine: number,
+    silent: boolean,
+  ) => {
+    const startPos = state.bMarks[startLine] + state.tShift[startLine]
+    const maxPos = state.eMarks[startLine]
+    const firstLine = state.src.slice(startPos, maxPos).trim()
+    if (firstLine !== '$$') return false
+
+    let nextLine = startLine + 1
+    const content: string[] = []
+
+    for (; nextLine < endLine; nextLine += 1) {
+      const lineStart = state.bMarks[nextLine] + state.tShift[nextLine]
+      const lineEnd = state.eMarks[nextLine]
+      const line = state.src.slice(lineStart, lineEnd)
+
+      if (line.trim() === '$$') {
+        if (!silent) {
+          const token = state.push('math_block', 'math', 0)
+          token.block = true
+          token.content = content.join('\n')
+          token.map = [startLine, nextLine + 1]
+        }
+
+        state.line = nextLine + 1
+        return true
+      }
+
+      content.push(line)
+    }
+
+    return false
+  })
+
+  md.renderer.rules.math_inline = (tokens: Token[], idx: number) => renderKatex(tokens[idx].content, false)
+  md.renderer.rules.math_block = (tokens: Token[], idx: number) => renderKatex(tokens[idx].content, true)
+}
+
+const markdown = new MarkdownIt({
+  html: false,
+  breaks: true,
+  linkify: true,
+}).use(markdownKatex)
+
+const renderMessage = (content: string) => DOMPurify.sanitize(markdown.render(content))
 
 type Message = {
   id: string
@@ -351,7 +438,7 @@ const handleSendMessage = () => {
 
 function generateAIResponse(question: string, subject: string): string {
   if (subject === 'math') {
-    return `**문제 분석**\n${question}\n\n**풀이 과정**\n\n**1단계: 개념 확인**\n이 문제는 극한의 기본 성질을 활용하는 문제입니다.\n\n**2단계: 공식 적용**\nlim(x→0) (sin x)/x = 1 (기본 극한 공식)\n\n**3단계: 계산**\n주어진 식에 공식을 적용하면 답은 **1**입니다.\n\n**핵심 개념**\n- 삼각함수의 극한\n- 로피탈 정리 (선택적)\n\n더 궁금한 점이 있으면 언제든 물어보세요! 😊`
+    return `**문제 분석**\n${question}\n\n**풀이 과정**\n\n**1단계: 개념 확인**\n이 문제는 극한의 기본 성질을 활용하는 문제입니다.\n\n**2단계: 공식 적용**\n기본 극한 공식은 다음과 같습니다.\n\n$$\n\\lim_{x \\to 0} \\frac{\\sin x}{x} = 1\n$$\n\n**3단계: 계산**\n주어진 식에 공식을 적용하면 답은 **$1$**입니다.\n\n**핵심 개념**\n- 삼각함수의 극한\n- 로피탈 정리 (선택적)\n\n더 궁금한 점이 있으면 언제든 물어보세요! 😊`
   } else if (subject === 'korean') {
     return `**문제 분석**\n${question}\n\n**해설**\n\n**1. 작품의 배경**\n이 작품은 화자의 내면적 감정을 자연물에 투영하여 표현하고 있습니다.\n\n**2. 화자의 정서**\n- 주된 정서: 그리움, 고독\n- 표현 기법: 은유, 의인화\n\n**3. 시적 의미**\n화자는 자연을 통해 자신의 감정을 승화시키고 있습니다.\n\n추가로 궁금한 부분이 있으면 말씀해주세요!`
   } else if (subject === 'english') {
@@ -383,3 +470,41 @@ const formatTime = (date: Date) =>
 const formatDate = (date: Date) =>
   date.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' })
 </script>
+
+<style scoped>
+.chat-message {
+  overflow-wrap: anywhere;
+  line-height: 1.65;
+}
+
+.chat-message :deep(p) {
+  margin: 0 0 0.75rem;
+}
+
+.chat-message :deep(p:last-child) {
+  margin-bottom: 0;
+}
+
+.chat-message :deep(ul),
+.chat-message :deep(ol) {
+  margin: 0.5rem 0 0.75rem 1.25rem;
+}
+
+.chat-message :deep(ul) {
+  list-style: disc;
+}
+
+.chat-message :deep(ol) {
+  list-style: decimal;
+}
+
+.chat-message :deep(strong) {
+  font-weight: 700;
+}
+
+.chat-message :deep(.katex-display) {
+  margin: 0.75rem 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+</style>
