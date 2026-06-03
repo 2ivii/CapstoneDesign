@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { StudyPlanModule } from './study-plan/study-plan.module';
 import { WeakAreaModule } from './weak-area/weak-area.module';
 import { ExamModule } from './exam/exam.module';
 import { ChatModule } from './chat/chat.module';
@@ -24,6 +25,7 @@ import { ChatModule } from './chat/chat.module';
     WeakAreaModule,
     ExamModule,
     ChatModule,
+    StudyPlanModule,
   ],
 })
 export class AppModule {}

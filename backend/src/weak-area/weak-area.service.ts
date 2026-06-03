@@ -53,12 +53,13 @@ export class WeakAreaService {
       },
     });
 
-    // 세부 개념(category 태그) → 틀린 문항 번호 목록
-    const conceptToNumbers = new Map<string, number[]>();
+    // category 태그 → 틀린 문항 번호 목록.
+    // 대분류/소분류를 나누지 않고, 한 문항 안의 중복 태그만 제거해 동등하게 집계한다.
+    const conceptToNumbers = new Map<string, Set<number>>();
     for (const problem of wrongProblems) {
-      for (const concept of problem.category) {
-        const numbers = conceptToNumbers.get(concept) ?? [];
-        numbers.push(problem.number);
+      for (const concept of this.uniqueCategories(problem.category)) {
+        const numbers = conceptToNumbers.get(concept) ?? new Set<number>();
+        numbers.add(problem.number);
         conceptToNumbers.set(concept, numbers);
       }
     }
@@ -67,11 +68,15 @@ export class WeakAreaService {
       this.weakAreaRepo.create({
         subject_id: subject.subject_id,
         unit: concept,
-        content: this.buildContent(concept, numbers),
+        content: this.buildContent(concept, [...numbers]),
       }),
     );
 
     return this.weakAreaRepo.save(weakAreas);
+  }
+
+  private uniqueCategories(categories: string[]): string[] {
+    return [...new Set(categories)];
   }
 
   /**
