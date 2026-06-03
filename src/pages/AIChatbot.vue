@@ -267,7 +267,7 @@
                 </div>
                 <textarea
                   v-model="inputText"
-                  @keydown.enter.exact.prevent="handleSendMessage"
+                  @keydown.enter.exact.prevent="handleEnterKey"
                   :placeholder="currentChat && !currentChat.initialized ? '이미지를 첨부하면 모의고사 정보를 입력할 수 있습니다.' : '추가 질문을 입력하세요... (Shift+Enter로 줄바꿈)'"
                   class="flex-1 min-h-[60px] resize-none border border-gray-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:border-emerald-500"
                 />
@@ -288,7 +288,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, nextTick, watch } from 'vue'
+import { ref, computed, nextTick, watch, onMounted } from 'vue'
 import MarkdownIt from 'markdown-it'
 import type StateBlock from 'markdown-it/lib/rules_block/state_block.mjs'
 import type StateInline from 'markdown-it/lib/rules_inline/state_inline.mjs'
@@ -310,9 +310,10 @@ const renderKatex = (source: string, displayMode: boolean) =>
 type MarkdownItInstance = ReturnType<typeof MarkdownIt>
 
 const markdownKatex = (md: MarkdownItInstance): void => {
+  // 인라인 $...$
   md.inline.ruler.before('escape', 'math_inline', (state: StateInline, silent: boolean) => {
     if (state.src.charCodeAt(state.pos) !== 0x24) return false
-    if (state.src.charCodeAt(state.pos + 1) === 0x24) return false
+    if (state.src.charCodeAt(state.pos + 1) === 0x24) return false // $$는 math_display가 처리
     const start = state.pos + 1
     const end = state.src.indexOf('$', start)
     if (end === -1 || end === start) return false
@@ -325,6 +326,22 @@ const markdownKatex = (md: MarkdownItInstance): void => {
     return true
   })
 
+  // 한 줄 $$...$$ — math_inline 앞에 삽입하여 $$ 우선 처리
+  md.inline.ruler.before('math_inline', 'math_display', (state: StateInline, silent: boolean) => {
+    if (state.src.charCodeAt(state.pos) !== 0x24) return false
+    if (state.src.charCodeAt(state.pos + 1) !== 0x24) return false
+    const start = state.pos + 2
+    const end = state.src.indexOf('$$', start)
+    if (end === -1) return false
+    if (!silent) {
+      const token = state.push('math_block', 'math', 0)
+      token.content = state.src.slice(start, end)
+    }
+    state.pos = end + 2
+    return true
+  })
+
+  // 멀티라인 $$ 블록
   md.block.ruler.before('fence', 'math_block', (
     state: StateBlock,
     startLine: number,
@@ -391,6 +408,20 @@ type ChatRoom = {
   messages: Message[]
   examInfo?: ExamInfo
   initialized: boolean
+  messagesLoaded: boolean
+}
+
+type SessionResponse = {
+  chatId: number
+  name: string
+  createdAt: string
+}
+
+type MessageResponse = {
+  messageId: number
+  sender: string
+  content: string
+  sendAt: string
 }
 
 type SolveResponse = {
@@ -427,6 +458,15 @@ const subjects = [
 const subjectToApi: Record<string, string> = {
   math: '수학', korean: '국어', english: '영어',
   science1: '과학', science2: '과학', history: '사회',
+}
+
+const nameToSubjectId: Record<string, string> = {
+  '수학': 'math', '국어': 'korean', '영어': 'english',
+  '과학': 'science1', '사회': 'history',
+}
+
+function subjectIdFromName(name: string): string {
+  return Object.entries(nameToSubjectId).find(([k]) => name.startsWith(k))?.[1] ?? 'math'
 }
 
 const examOrgs = ['교육청', '평가원', '수능'] as const
@@ -467,6 +507,61 @@ watch(currentMessages, async () => {
   }
 }, { deep: true })
 
+// 채팅방 전환 시 메시지 lazy-load
+watch(currentChatId, async (id) => {
+  if (!id) return
+  const chat = chatRooms.value.find(c => c.id === id)
+  if (!chat || chat.messagesLoaded || !chat.apiChatId) return
+
+  try {
+    const res = await fetch(`/api/chat/messages/${chat.apiChatId}`)
+    if (!res.ok) return
+    const msgs = (await res.json()) as MessageResponse[]
+
+    const idx = chatRooms.value.findIndex(c => c.id === id)
+    if (idx === -1) return
+
+    chatRooms.value[idx].messages = msgs.map(m => ({
+      id: String(m.messageId),
+      role: (m.sender === 'student' ? 'user' : 'assistant') as 'user' | 'assistant',
+      content: m.content,
+      timestamp: new Date(m.sendAt),
+    }))
+    chatRooms.value[idx].messagesLoaded = true
+
+    const last = msgs[msgs.length - 1]
+    if (last) chatRooms.value[idx].lastMessage = last.content.slice(0, 60)
+  } catch (e) {
+    console.error('메시지 로드 실패', e)
+  }
+}, { immediate: true })
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+
+onMounted(async () => {
+  try {
+    const res = await fetch(`/api/chat/sessions/${STUDENT_ID}`)
+    if (!res.ok) return
+    const sessions = (await res.json()) as SessionResponse[]
+
+    chatRooms.value = sessions.map(s => ({
+      id: `db-${s.chatId}`,
+      apiChatId: s.chatId,
+      title: s.name,
+      subject: subjectIdFromName(s.name),
+      lastMessage: '',
+      timestamp: new Date(s.createdAt),
+      messages: [],
+      initialized: true,
+      messagesLoaded: false,
+    }))
+
+    if (chatRooms.value.length > 0) currentChatId.value = chatRooms.value[0].id
+  } catch (e) {
+    console.error('세션 로드 실패', e)
+  }
+})
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function examInfoLabel(info: ExamInfo): string {
@@ -498,6 +593,7 @@ const createNewChat = () => {
       },
     ],
     initialized: false,
+    messagesLoaded: true,
   }
   chatRooms.value.unshift(newChat)
   currentChatId.value = newChat.id
@@ -547,6 +643,11 @@ async function callFollowup(chatId: number, message: string): Promise<FollowupRe
 }
 
 // ── Send Message ──────────────────────────────────────────────────────────────
+
+const handleEnterKey = (e: KeyboardEvent) => {
+  if (e.isComposing || e.keyCode === 229) return  // 한글 IME 조합 중 무시
+  handleSendMessage()
+}
 
 const handleSendMessage = async () => {
   if (!inputText.value.trim() && !uploadedFile.value) return
