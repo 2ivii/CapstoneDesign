@@ -2,116 +2,34 @@
   <div class="flex h-screen bg-gray-50">
     <Sidebar />
 
-    <!-- New Chat Dialog -->
+    <!-- New Chat Dialog (과목 선택만) -->
     <div
       v-if="showNewChatDialog"
       class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center"
       @click.self="showNewChatDialog = false"
     >
-      <div class="bg-white rounded-xl shadow-xl w-full max-w-md p-6 max-h-[90vh] overflow-y-auto">
+      <div class="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
         <h2 class="text-lg font-bold mb-1">새 대화 만들기</h2>
-        <p class="text-sm text-gray-600 mb-4">어떤 과목의 어떤 문제를 풀까요?</p>
-
-        <!-- Subject -->
-        <div class="mb-4">
-          <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">과목</p>
-          <div class="grid grid-cols-2 gap-2">
-            <button
-              v-for="subject in subjects"
-              :key="subject.id"
-              @click="newChatSubject = subject.id"
-              :class="[
-                'p-3 rounded-lg border-2 text-sm font-medium transition-all text-left',
-                newChatSubject === subject.id
-                  ? 'border-emerald-600 bg-emerald-50 text-emerald-700'
-                  : 'border-gray-200 hover:border-gray-300 text-gray-700'
-              ]"
-            >
-              <span
-                class="inline-block w-2 h-2 rounded-full mr-2 align-middle"
-                :style="{ backgroundColor: subject.color }"
-              />
-              {{ subject.name }}
-            </button>
-          </div>
-        </div>
-
-        <!-- Exam org -->
-        <div class="mb-3">
-          <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">시행</p>
-          <div class="grid grid-cols-3 gap-2">
-            <button
-              v-for="org in examOrgs"
-              :key="org"
-              @click="newChatExamOrg = org"
-              :class="[
-                'p-2 rounded-lg border-2 text-sm font-medium transition-all',
-                newChatExamOrg === org
-                  ? 'border-emerald-600 bg-emerald-50 text-emerald-700'
-                  : 'border-gray-200 hover:border-gray-300 text-gray-700'
-              ]"
-            >{{ org }}</button>
-          </div>
-        </div>
-
-        <!-- Year + Month -->
-        <div class="grid grid-cols-2 gap-3 mb-3">
-          <div>
-            <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1 block">학년도</label>
-            <input
-              v-model="newChatExamYear"
-              type="number"
-              min="2020"
-              max="2030"
-              class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-emerald-500"
-              placeholder="예: 2026"
+        <p class="text-sm text-gray-600 mb-4">어떤 과목으로 시작할까요?</p>
+        <div class="grid grid-cols-2 gap-3 mb-6">
+          <button
+            v-for="subject in subjects"
+            :key="subject.id"
+            @click="newChatSubject = subject.id"
+            :class="[
+              'p-3 rounded-lg border-2 text-sm font-medium transition-all text-left',
+              newChatSubject === subject.id
+                ? 'border-emerald-600 bg-emerald-50 text-emerald-700'
+                : 'border-gray-200 hover:border-gray-300 text-gray-700'
+            ]"
+          >
+            <span
+              class="inline-block w-2 h-2 rounded-full mr-2 align-middle"
+              :style="{ backgroundColor: subject.color }"
             />
-          </div>
-          <div v-if="newChatExamOrg !== '수능'">
-            <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1 block">월</label>
-            <select
-              v-model="newChatExamMonth"
-              class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-emerald-500"
-            >
-              <option v-for="m in examMonths" :key="m" :value="String(m)">{{ m }}월</option>
-            </select>
-          </div>
+            {{ subject.name }}
+          </button>
         </div>
-
-        <!-- Grade (non-수능 only) -->
-        <div v-if="newChatExamOrg !== '수능'" class="mb-3">
-          <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">학년</p>
-          <div class="grid grid-cols-3 gap-2">
-            <button
-              v-for="grade in examGrades"
-              :key="grade"
-              @click="newChatExamGrade = grade"
-              :class="[
-                'p-2 rounded-lg border-2 text-sm font-medium transition-all',
-                newChatExamGrade === grade
-                  ? 'border-emerald-600 bg-emerald-50 text-emerald-700'
-                  : 'border-gray-200 hover:border-gray-300 text-gray-700'
-              ]"
-            >{{ grade }}</button>
-          </div>
-        </div>
-
-        <!-- Question number -->
-        <div class="mb-5">
-          <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1 block">
-            문항 번호 <span class="text-red-500">*</span>
-          </label>
-          <input
-            v-model="newChatQuestionNo"
-            type="number"
-            min="1"
-            max="45"
-            class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-emerald-500"
-            placeholder="예: 21"
-          />
-          <p v-if="dialogError" class="text-red-500 text-xs mt-1">{{ dialogError }}</p>
-        </div>
-
         <div class="flex justify-end gap-2">
           <button
             @click="showNewChatDialog = false"
@@ -130,7 +48,7 @@
       <div class="w-64 bg-white border-r border-gray-200 flex flex-col">
         <div class="p-4 border-b">
           <button
-            @click="openNewChatDialog"
+            @click="showNewChatDialog = true"
             class="w-full bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg flex items-center justify-center gap-2 text-sm font-medium"
           >
             <Plus :size="16" />
@@ -198,7 +116,7 @@
             >
               {{ subjects.find(s => s.id === currentChat!.subject)?.name }}
             </span>
-            <span class="text-gray-500 text-xs">
+            <span v-if="currentChat.examInfo" class="text-gray-500 text-xs">
               {{ examInfoLabel(currentChat.examInfo) }} {{ currentChat.examInfo.questionNo }}번
             </span>
           </div>
@@ -249,18 +167,79 @@
 
             <!-- Input Area -->
             <div class="border-t p-4">
-              <!-- First-message hint -->
+              <!-- 이미지 첨부 시: 시험 정보 입력 폼 -->
               <div
-                v-if="currentChat && !currentChat.initialized"
-                class="mb-2 flex items-center gap-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2"
+                v-if="uploadedImage && currentChat && !currentChat.initialized"
+                class="mb-3 p-3 bg-gray-50 rounded-lg border border-gray-200"
               >
-                <Camera :size="14" />
-                <span>첫 메시지에는 문제 이미지를 반드시 첨부해주세요.</span>
+                <p class="text-xs font-semibold text-gray-500 mb-2">모의고사 정보</p>
+
+                <!-- Row 1: Org / Year / Month -->
+                <div class="flex flex-wrap gap-2 items-center mb-2">
+                  <div class="flex gap-1">
+                    <button
+                      v-for="org in examOrgs"
+                      :key="org"
+                      @click="solveExamOrg = org"
+                      :class="[
+                        'px-2 py-1 rounded text-xs border transition-colors',
+                        solveExamOrg === org
+                          ? 'border-emerald-600 bg-emerald-50 text-emerald-700'
+                          : 'border-gray-200 text-gray-600 hover:border-gray-300'
+                      ]"
+                    >{{ org }}</button>
+                  </div>
+                  <input
+                    v-model="solveExamYear"
+                    type="number"
+                    min="2020"
+                    max="2030"
+                    class="w-20 border border-gray-300 rounded px-2 py-1 text-xs focus:outline-none focus:border-emerald-500"
+                    placeholder="학년도"
+                  />
+                  <select
+                    v-if="solveExamOrg !== '수능'"
+                    v-model="solveExamMonth"
+                    class="border border-gray-300 rounded px-2 py-1 text-xs focus:outline-none focus:border-emerald-500"
+                  >
+                    <option v-for="m in examMonths" :key="m" :value="String(m)">{{ m }}월</option>
+                  </select>
+                </div>
+
+                <!-- Row 2: Grade / Question No -->
+                <div class="flex flex-wrap gap-2 items-center">
+                  <div v-if="solveExamOrg !== '수능'" class="flex gap-1">
+                    <button
+                      v-for="grade in examGrades"
+                      :key="grade"
+                      @click="solveExamGrade = grade"
+                      :class="[
+                        'px-2 py-1 rounded text-xs border transition-colors',
+                        solveExamGrade === grade
+                          ? 'border-emerald-600 bg-emerald-50 text-emerald-700'
+                          : 'border-gray-200 text-gray-600 hover:border-gray-300'
+                      ]"
+                    >{{ grade }}</button>
+                  </div>
+                  <div class="flex items-center gap-1">
+                    <span class="text-xs text-gray-500">문항</span>
+                    <input
+                      v-model="solveQuestionNo"
+                      type="number"
+                      min="1"
+                      max="45"
+                      class="w-16 border border-gray-300 rounded px-2 py-1 text-xs focus:outline-none focus:border-emerald-500"
+                      placeholder="번호"
+                    />
+                    <span class="text-red-500 text-xs">*</span>
+                  </div>
+                </div>
               </div>
 
               <!-- Send error -->
               <p v-if="sendError" class="text-red-500 text-xs mb-2">{{ sendError }}</p>
 
+              <!-- Image preview -->
               <div v-if="uploadedImage" class="mb-3 relative inline-block">
                 <img :src="uploadedImage" alt="업로드된 이미지" class="h-20 rounded border" />
                 <button
@@ -274,7 +253,7 @@
               <div class="flex gap-2">
                 <div class="flex gap-2">
                   <label class="cursor-pointer">
-                    <input type="file" accept="image/*" class="hidden" @change="handleImageUpload" ref="cameraInputRef" capture="environment" />
+                    <input type="file" accept="image/*" class="hidden" @change="handleImageUpload" capture="environment" />
                     <div class="p-2 border-2 border-gray-300 rounded-lg hover:border-emerald-500 transition-colors">
                       <Camera :size="20" class="text-gray-600" />
                     </div>
@@ -289,7 +268,7 @@
                 <textarea
                   v-model="inputText"
                   @keydown.enter.exact.prevent="handleSendMessage"
-                  placeholder="문제를 입력하세요... (Shift+Enter로 줄바꿈)"
+                  :placeholder="currentChat && !currentChat.initialized ? '이미지를 첨부하면 모의고사 정보를 입력할 수 있습니다.' : '추가 질문을 입력하세요... (Shift+Enter로 줄바꿈)'"
                   class="flex-1 min-h-[60px] resize-none border border-gray-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:border-emerald-500"
                 />
                 <button
@@ -410,7 +389,7 @@ type ChatRoom = {
   lastMessage: string
   timestamp: Date
   messages: Message[]
-  examInfo: ExamInfo
+  examInfo?: ExamInfo
   initialized: boolean
 }
 
@@ -468,12 +447,13 @@ const sendError = ref('')
 // Dialog state
 const showNewChatDialog = ref(false)
 const newChatSubject = ref('math')
-const newChatExamYear = ref('2025')
-const newChatExamMonth = ref('6')
-const newChatExamOrg = ref<string>('교육청')
-const newChatExamGrade = ref<string>('고3')
-const newChatQuestionNo = ref('')
-const dialogError = ref('')
+
+// Solve 시험 정보 (이미지 첨부 시 입력)
+const solveExamYear = ref('2025')
+const solveExamMonth = ref('6')
+const solveExamOrg = ref<string>('교육청')
+const solveExamGrade = ref<string>('고3')
+const solveQuestionNo = ref<number | null>(null)
 
 // ── Computed ──────────────────────────────────────────────────────────────────
 
@@ -501,34 +481,11 @@ function buildChatTitle(subject: string, info: ExamInfo): string {
 
 // ── Dialog ────────────────────────────────────────────────────────────────────
 
-const openNewChatDialog = () => {
-  dialogError.value = ''
-  newChatQuestionNo.value = ''
-  showNewChatDialog.value = true
-}
-
 const createNewChat = () => {
-  if (!newChatQuestionNo.value || isNaN(Number(newChatQuestionNo.value))) {
-    dialogError.value = '문항 번호를 올바르게 입력해주세요.'
-    return
-  }
-  if (!newChatExamYear.value || isNaN(Number(newChatExamYear.value))) {
-    dialogError.value = '학년도를 입력해주세요.'
-    return
-  }
-  dialogError.value = ''
-
-  const examInfo: ExamInfo = {
-    examYear: String(newChatExamYear.value),
-    examMonth: newChatExamOrg.value === '수능' ? '' : String(newChatExamMonth.value),
-    examOrg: newChatExamOrg.value,
-    examGrade: newChatExamOrg.value === '수능' ? '' : newChatExamGrade.value,
-    questionNo: String(newChatQuestionNo.value),
-  }
-
+  const subjectName = subjects.find(s => s.id === newChatSubject.value)?.name ?? '새'
   const newChat: ChatRoom = {
     id: Date.now().toString(),
-    title: buildChatTitle(newChatSubject.value, examInfo),
+    title: `새 대화 - ${subjectName}`,
     subject: newChatSubject.value,
     lastMessage: '',
     timestamp: new Date(),
@@ -536,14 +493,12 @@ const createNewChat = () => {
       {
         id: '0',
         role: 'assistant',
-        content: '안녕하세요! AI 문제풀이 튜터입니다.\n\n문제 사진을 첨부하여 전송하면 단계별로 자세히 설명해드립니다.',
+        content: '안녕하세요! AI 문제풀이 튜터입니다.\n\n문제 사진을 첨부하면 모의고사 정보를 입력하고 AI에게 풀이를 요청할 수 있습니다.',
         timestamp: new Date(),
       },
     ],
-    examInfo,
     initialized: false,
   }
-
   chatRooms.value.unshift(newChat)
   currentChatId.value = newChat.id
   showNewChatDialog.value = false
@@ -558,16 +513,16 @@ const deleteChat = (chatId: string) => {
 
 // ── API ───────────────────────────────────────────────────────────────────────
 
-async function callSolve(chat: ChatRoom, file: File, userMessage?: string): Promise<SolveResponse> {
+async function callSolve(chat: ChatRoom, examInfo: ExamInfo, file: File, userMessage?: string): Promise<SolveResponse> {
   const formData = new FormData()
   formData.append('image', file)
   formData.append('studentId', String(STUDENT_ID))
   formData.append('subject', subjectToApi[chat.subject] ?? '')
-  formData.append('examYear', chat.examInfo.examYear)
-  formData.append('examMonth', chat.examInfo.examMonth)
-  formData.append('examOrg', chat.examInfo.examOrg)
-  formData.append('examGrade', chat.examInfo.examGrade)
-  formData.append('questionNo', chat.examInfo.questionNo)
+  formData.append('examYear', examInfo.examYear)
+  formData.append('examMonth', examInfo.examMonth)
+  formData.append('examOrg', examInfo.examOrg)
+  formData.append('examGrade', examInfo.examGrade)
+  formData.append('questionNo', examInfo.questionNo)
   if (userMessage) formData.append('message', userMessage)
 
   const res = await fetch('/api/chat/solve', { method: 'POST', body: formData })
@@ -599,9 +554,22 @@ const handleSendMessage = async () => {
   const chat = currentChat.value
   if (!chat) return
 
+  // 첫 메시지: 이미지 필수
   if (!chat.initialized && !uploadedFile.value) {
     sendError.value = '첫 메시지에는 문제 이미지를 반드시 첨부해주세요.'
     return
+  }
+
+  // 첫 메시지: 시험 정보 validation
+  if (!chat.initialized && uploadedFile.value) {
+    if (!solveQuestionNo.value || isNaN(Number(solveQuestionNo.value))) {
+      sendError.value = '문항 번호를 입력해주세요.'
+      return
+    }
+    if (!solveExamYear.value) {
+      sendError.value = '학년도를 입력해주세요.'
+      return
+    }
   }
 
   sendError.value = ''
@@ -612,16 +580,14 @@ const handleSendMessage = async () => {
   const messageText = inputText.value.trim()
   const imageFile = uploadedFile.value
 
-  const userMessage: Message = {
+  chatRooms.value[chatIndex].messages.push({
     id: Date.now().toString(),
     role: 'user',
     content: messageText || '이미지 문제 풀이 요청',
     timestamp: new Date(),
     hasImage: !!imageFile,
-  }
-
-  chatRooms.value[chatIndex].messages.push(userMessage)
-  chatRooms.value[chatIndex].lastMessage = userMessage.content
+  })
+  chatRooms.value[chatIndex].lastMessage = messageText || '이미지 문제 풀이 요청'
   chatRooms.value[chatIndex].timestamp = new Date()
 
   inputText.value = ''
@@ -632,14 +598,25 @@ const handleSendMessage = async () => {
     let solution: string
 
     if (!chat.initialized && imageFile) {
-      const res = await callSolve(chat, imageFile, messageText || undefined)
+      const examInfo: ExamInfo = {
+        examYear: String(solveExamYear.value),
+        examMonth: solveExamOrg.value === '수능' ? '' : String(solveExamMonth.value),
+        examOrg: solveExamOrg.value,
+        examGrade: solveExamOrg.value === '수능' ? '' : solveExamGrade.value,
+        questionNo: String(solveQuestionNo.value),
+      }
+
+      const res = await callSolve(chat, examInfo, imageFile, messageText || undefined)
 
       if (!res.isValid) {
         solution = res.errorMessage || '이미지를 인식할 수 없습니다. 다시 시도해주세요.'
       } else {
         solution = res.solution
         if (res.chatId) chatRooms.value[chatIndex].apiChatId = res.chatId
+        chatRooms.value[chatIndex].examInfo = examInfo
+        chatRooms.value[chatIndex].title = buildChatTitle(chat.subject, examInfo)
         chatRooms.value[chatIndex].initialized = true
+        solveQuestionNo.value = null
       }
     } else if (chat.apiChatId) {
       const res = await callFollowup(chat.apiChatId, messageText)
