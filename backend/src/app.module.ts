@@ -4,6 +4,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { StudyPlanModule } from './study-plan/study-plan.module';
 import { WeakAreaModule } from './weak-area/weak-area.module';
 import { ExamModule } from './exam/exam.module';
+import { ChatModule } from './chat/chat.module';
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { ExamModule } from './exam/exam.module';
     }),
     WeakAreaModule,
     ExamModule,
+    ChatModule,
     StudyPlanModule,
   ],
 })
