@@ -35,6 +35,42 @@ type GeneratedSlot = {
   unit: string;
 };
 
+type GeneratedScheduleSlot = GeneratedSlot & {
+  date: string;
+  startTime: string;
+  endTime: string;
+};
+
+type PriorityLevel = 'urgent' | 'high' | 'medium';
+
+type SubjectPriority = {
+  subject: string;
+  current: number | null;
+  target: number | null;
+  priority: PriorityLevel;
+  gap: number;
+  weakUnits: string[];
+  percentage: number;
+  color: string;
+  studySlotCount: number;
+  weight: number;
+  weightFactors: {
+    gradeGapScore: number;
+    weakUnitScore: number;
+    scoreDataScore: number;
+  };
+};
+
+type PlanAnalysis = {
+  subjectPriorities: SubjectPriority[];
+  timeWeightAnalysis: {
+    totalStudySlots: number;
+    maxSubjectSlots: number;
+    highConcentrationTimes: string[];
+    formula: string;
+  };
+};
+
 @Injectable()
 export class StudyPlanService {
   constructor(
@@ -62,31 +98,23 @@ export class StudyPlanService {
     }
 
     const plannerInput = await this.buildPlannerInput(student);
-    const aiSlots = await this.generateWithAi(plannerInput);
-    const generatedSlots = aiSlots ?? this.generateFallbackSlots(plannerInput);
+    const aiSlots = await this.generateWithAi(plannerInput, dates);
+    const generatedSlots =
+      aiSlots ?? this.generateFallbackScheduleSlots(plannerInput, dates);
 
     const plan = await this.studyPlanRepo.save(
       this.studyPlanRepo.create({ student_id: student.student_id }),
     );
     const slots = await this.planSlotRepo.save(
-      dates.flatMap((date, dayIndex) =>
-        DAILY_TIME_SLOTS.map((timeSlot, slotIndex) => {
-          const previousStudySlotCount =
-            dayIndex * DAILY_STUDY_SLOT_COUNT +
-            DAILY_TIME_SLOTS.slice(0, slotIndex).filter((slot) => !slot.fixed)
-              .length;
-          const generatedSlot =
-            timeSlot.fixed ?? generatedSlots[previousStudySlotCount];
-
-          return this.planSlotRepo.create({
-            plan_id: plan.plan_id,
-            subject: generatedSlot.subject,
-            unit: generatedSlot.unit,
-            date,
-            start_time: timeSlot.startTime,
-            end_time: timeSlot.endTime,
-            isConc: false,
-          });
+      generatedSlots.map((generatedSlot) =>
+        this.planSlotRepo.create({
+          plan_id: plan.plan_id,
+          subject: generatedSlot.subject,
+          unit: generatedSlot.unit,
+          date: generatedSlot.date,
+          start_time: generatedSlot.startTime,
+          end_time: generatedSlot.endTime,
+          isConc: false,
         }),
       ),
     );
@@ -98,6 +126,7 @@ export class StudyPlanService {
       endDate: dates[dates.length - 1],
       source: aiSlots ? 'ai' : 'fallback',
       inputs: plannerInput,
+      analysis: this.buildPlanAnalysis(plannerInput, generatedSlots),
       slots,
     };
   }
@@ -111,16 +140,34 @@ export class StudyPlanService {
       throw new NotFoundException(`학생(${studentId})의 시간표가 없습니다.`);
     }
 
-    const slots = await this.planSlotRepo.find({
-      where: { plan_id: plan.plan_id },
-      order: { date: 'ASC', start_time: 'ASC' },
-    });
+    const [student, slots] = await Promise.all([
+      this.studentRepo.findOne({ where: { student_id: studentId } }),
+      this.planSlotRepo.find({
+        where: { plan_id: plan.plan_id },
+        order: { date: 'ASC', start_time: 'ASC' },
+      }),
+    ]);
+
+    if (!student) {
+      throw new NotFoundException(`학생(${studentId})을 찾을 수 없습니다.`);
+    }
+
+    const plannerInput = await this.buildPlannerInput(student);
+    const generatedSlots = slots.map((slot) => ({
+      date: slot.date,
+      startTime: slot.start_time.slice(0, 5),
+      endTime: slot.end_time.slice(0, 5),
+      subject: slot.subject,
+      unit: slot.unit,
+    }));
 
     return {
       planId: plan.plan_id,
       studentId,
       createdAt: plan.created_at,
       updatedAt: plan.updated_at,
+      inputs: plannerInput,
+      analysis: this.buildPlanAnalysis(plannerInput, generatedSlots),
       slots,
     };
   }
@@ -186,7 +233,8 @@ export class StudyPlanService {
 
   private async generateWithAi(
     plannerInput: PlannerInput[],
-  ): Promise<GeneratedSlot[] | null> {
+    dates: string[],
+  ): Promise<GeneratedScheduleSlot[] | null> {
     const apiKey = this.config.get<string>('OPENAI_API_KEY');
     if (!apiKey) {
       return null;
@@ -206,13 +254,19 @@ export class StudyPlanService {
           {
             role: 'system',
             content:
-              '너는 학습 시간표 생성기다. 반드시 JSON만 응답한다. 점심, 저녁, 휴식 시간은 서버가 고정하므로 너는 공부 슬롯만 생성한다.',
+              '너는 학습 시간표 생성기다. 반드시 JSON만 응답한다. 설명, 마크다운, 코드블록은 금지한다.',
           },
           {
             role: 'user',
             content: JSON.stringify({
               requirement:
-                '7일치 공부 슬롯 42개를 생성하라. 배열 순서는 각 날짜의 06:00, 08:00, 10:00, 14:00, 16:00, 20:00 순서다. 현재 등급과 목표 등급 차이가 큰 과목과 취약 단원이 많은 과목의 비중을 높이되, 입력에 있는 모든 과목을 최소 1회 이상 포함하라. 한 과목이 전체 공부 슬롯의 60%를 초과하지 않게 하라. 응답은 [{"subject":"수학","unit":"삼각비"}] 형태의 JSON 배열 42개만 허용한다.',
+                '7일치 전체 시간표 63개를 생성하라. 각 날짜는 06:00~24:00를 2시간 단위로 나눈 9개 슬롯이어야 한다. 12:00~14:00는 반드시 {"subject":"휴식","unit":"점심시간"}, 18:00~20:00는 반드시 {"subject":"휴식","unit":"저녁시간"}, 22:00~24:00는 반드시 {"subject":"휴식","unit":"휴식"}으로 넣어라. 공부 슬롯은 plannerInput에 있는 subject와 weakUnits만 사용하라. 현재 등급과 목표 등급 차이가 큰 과목, 취약 단원이 많은 과목의 비중을 높여라. 모든 입력 과목은 최소 1회 이상 포함하고, 한 과목이 공부 슬롯 42개 중 25개를 초과하지 않게 하라. 응답은 {"slots":[{"date":"YYYY-MM-DD","startTime":"06:00","endTime":"08:00","subject":"수학","unit":"삼각비"}]} 구조만 허용한다.',
+              dates,
+              timeSlots: DAILY_TIME_SLOTS.map(({ startTime, endTime, fixed }) => ({
+                startTime,
+                endTime,
+                fixed,
+              })),
               plannerInput,
             }),
           },
@@ -230,22 +284,86 @@ export class StudyPlanService {
       return null;
     }
 
-    return this.parseGeneratedSlots(content);
+    return this.parseGeneratedScheduleSlots(content, plannerInput, dates);
   }
 
-  private parseGeneratedSlots(content: string): GeneratedSlot[] | null {
+  private parseGeneratedScheduleSlots(
+    content: string,
+    plannerInput: PlannerInput[],
+    dates: string[],
+  ): GeneratedScheduleSlot[] | null {
     try {
       const parsed = JSON.parse(content);
-      if (!Array.isArray(parsed) || parsed.length !== WEEKLY_STUDY_SLOT_COUNT) {
+      const rawSlots = Array.isArray(parsed) ? parsed : parsed?.slots;
+      if (
+        !Array.isArray(rawSlots) ||
+        rawSlots.length !== dates.length * DAILY_TIME_SLOTS.length
+      ) {
         return null;
       }
 
-      const slots = parsed.map((slot) => ({
+      const validUnitsBySubject = new Map(
+        plannerInput.map((input) => [input.subject, new Set(input.weakUnits)]),
+      );
+      const subjectCounts = new Map<string, number>();
+      const maxSubjectSlots = Math.floor(WEEKLY_STUDY_SLOT_COUNT * 0.6);
+
+      const slots = rawSlots.map((slot) => ({
+        date: String(slot.date ?? '').slice(0, 10),
+        startTime: String(slot.startTime ?? '').slice(0, 5),
+        endTime: String(slot.endTime ?? '').slice(0, 5),
         subject: String(slot.subject ?? '').slice(0, 30),
         unit: String(slot.unit ?? '').slice(0, 50),
       }));
-      if (slots.some((slot) => !slot.subject || !slot.unit)) {
+      if (
+        slots.some(
+          (slot) =>
+            !slot.date ||
+            !slot.startTime ||
+            !slot.endTime ||
+            !slot.subject ||
+            !slot.unit,
+        )
+      ) {
         return null;
+      }
+
+      for (const [slotIndex, slot] of slots.entries()) {
+        const dayIndex = Math.floor(slotIndex / DAILY_TIME_SLOTS.length);
+        const timeSlot = DAILY_TIME_SLOTS[slotIndex % DAILY_TIME_SLOTS.length];
+        if (
+          slot.date !== dates[dayIndex] ||
+          slot.startTime !== timeSlot.startTime ||
+          slot.endTime !== timeSlot.endTime
+        ) {
+          return null;
+        }
+
+        if (timeSlot.fixed) {
+          if (
+            slot.subject !== timeSlot.fixed.subject ||
+            slot.unit !== timeSlot.fixed.unit
+          ) {
+            return null;
+          }
+          continue;
+        }
+
+        const validUnits = validUnitsBySubject.get(slot.subject);
+        if (!validUnits?.has(slot.unit)) {
+          return null;
+        }
+
+        subjectCounts.set(slot.subject, (subjectCounts.get(slot.subject) ?? 0) + 1);
+        if ((subjectCounts.get(slot.subject) ?? 0) > maxSubjectSlots) {
+          return null;
+        }
+      }
+
+      for (const input of plannerInput) {
+        if ((subjectCounts.get(input.subject) ?? 0) === 0) {
+          return null;
+        }
       }
 
       return slots;
@@ -254,14 +372,43 @@ export class StudyPlanService {
     }
   }
 
-  private generateFallbackSlots(plannerInput: PlannerInput[]): GeneratedSlot[] {
+  private generateFallbackScheduleSlots(
+    plannerInput: PlannerInput[],
+    dates: string[],
+  ): GeneratedScheduleSlot[] {
+    const studySlots = this.generateFallbackStudySlots(plannerInput);
+    return dates.flatMap((date, dayIndex) =>
+      DAILY_TIME_SLOTS.map((timeSlot, slotIndex) => {
+        const previousStudySlotCount =
+          dayIndex * DAILY_STUDY_SLOT_COUNT +
+          DAILY_TIME_SLOTS.slice(0, slotIndex).filter((slot) => !slot.fixed).length;
+        const generatedSlot =
+          timeSlot.fixed ?? studySlots[previousStudySlotCount];
+
+        return {
+          date,
+          startTime: timeSlot.startTime,
+          endTime: timeSlot.endTime,
+          subject: generatedSlot.subject,
+          unit: generatedSlot.unit,
+        };
+      }),
+    );
+  }
+
+  private generateFallbackStudySlots(plannerInput: PlannerInput[]): GeneratedSlot[] {
     if (plannerInput.length === 0) {
       throw new BadRequestException('시간표를 생성할 취약 영역이 없습니다.');
     }
 
     const weightedSubjects = plannerInput.map((input) => ({
       input,
-      weight: Math.max(1, input.gradeGap + (input.hasScoreData ? 1 : 0)),
+      weight: Math.max(
+        1,
+        input.gradeGap * 2 +
+          input.weakUnits.filter((unit) => unit !== '기본 복습').length +
+          (input.hasScoreData ? 1 : 0),
+      ),
       quota: 0,
       remainder: 0,
     }));
@@ -316,6 +463,91 @@ export class StudyPlanService {
     }
 
     return slots;
+  }
+
+  private buildPlanAnalysis(
+    plannerInput: PlannerInput[],
+    slots: GeneratedScheduleSlot[],
+  ): PlanAnalysis {
+    const studySlots = slots.filter((slot) => slot.subject !== '휴식');
+    const totalStudySlots = studySlots.length;
+    const slotCounts = new Map<string, number>();
+    for (const slot of studySlots) {
+      slotCounts.set(slot.subject, (slotCounts.get(slot.subject) ?? 0) + 1);
+    }
+
+    const subjectPriorities = plannerInput
+      .map((input) => {
+        const weakUnits = input.weakUnits.filter((unit) => unit !== '기본 복습');
+        const studySlotCount = slotCounts.get(input.subject) ?? 0;
+        const gradeGapScore = input.gradeGap * 2;
+        const weakUnitScore = weakUnits.length;
+        const scoreDataScore = input.hasScoreData ? 1 : 0;
+        const weight = Math.max(1, gradeGapScore + weakUnitScore + scoreDataScore);
+
+        return {
+          subject: input.subject,
+          current: input.currentGrade,
+          target: input.targetGrade,
+          priority: this.resolvePriority(input.gradeGap, weakUnits.length),
+          gap: input.gradeGap,
+          weakUnits: input.weakUnits,
+          percentage:
+            totalStudySlots > 0
+              ? Math.round((studySlotCount / totalStudySlots) * 100)
+              : 0,
+          color: this.getSubjectColor(input.subject),
+          studySlotCount,
+          weight,
+          weightFactors: {
+            gradeGapScore,
+            weakUnitScore,
+            scoreDataScore,
+          },
+        };
+      })
+      .sort(
+        (a, b) =>
+          b.weight - a.weight ||
+          b.studySlotCount - a.studySlotCount ||
+          a.subject.localeCompare(b.subject),
+      );
+
+    return {
+      subjectPriorities,
+      timeWeightAnalysis: {
+        totalStudySlots,
+        maxSubjectSlots: Math.floor(WEEKLY_STUDY_SLOT_COUNT * 0.6),
+        highConcentrationTimes: ['06:00~08:00', '20:00~22:00'],
+        formula: 'gradeGap * 2 + weakUnitCount + hasScoreData',
+      },
+    };
+  }
+
+  private resolvePriority(gradeGap: number, weakUnitCount: number): PriorityLevel {
+    if (gradeGap >= 2) {
+      return 'urgent';
+    }
+    if (gradeGap >= 1 || weakUnitCount >= 3) {
+      return 'high';
+    }
+    return 'medium';
+  }
+
+  private getSubjectColor(subject: string): string {
+    const colors: Record<string, string> = {
+      국어: '#f59e0b',
+      영어: '#3b82f6',
+      수학: '#10b981',
+      사회: '#f97316',
+      과학: '#06b6d4',
+      한국사: '#ec4899',
+      생명과학1: '#8b5cf6',
+      지구과학1: '#06b6d4',
+      휴식: '#9ca3af',
+    };
+
+    return colors[subject] ?? '#64748b';
   }
 
   private getTargetGrade(goalScore: number[] | null, subject: string): number | null {

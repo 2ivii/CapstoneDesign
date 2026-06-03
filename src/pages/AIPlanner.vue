@@ -68,16 +68,16 @@
                           v-if="getCellBlock(day.key, rowIndex)"
                           class="h-full min-h-[48px] rounded-lg p-2 flex flex-col justify-center"
                           :style="{
-                            backgroundColor: subjectMap[getCellBlock(day.key, rowIndex)!.subject].bgColor,
-                            color: subjectMap[getCellBlock(day.key, rowIndex)!.subject].textColor
+                            backgroundColor: getSubjectStyle(getCellBlock(day.key, rowIndex)!.subject).bgColor,
+                            color: getSubjectStyle(getCellBlock(day.key, rowIndex)!.subject).textColor
                           }"
                         >
                           <div class="flex items-center justify-between mb-0.5">
-                            <span class="font-bold text-xs">{{ subjectMap[getCellBlock(day.key, rowIndex)!.subject].name }}</span>
+                            <span class="font-bold text-xs">{{ getSubjectStyle(getCellBlock(day.key, rowIndex)!.subject).name }}</span>
                             <Sparkles
                               v-if="getCellBlock(day.key, rowIndex)!.concentration >= 80"
                               :size="12"
-                              :style="{ color: subjectMap[getCellBlock(day.key, rowIndex)!.subject].textColor, opacity: 0.7 }"
+                              :style="{ color: getSubjectStyle(getCellBlock(day.key, rowIndex)!.subject).textColor, opacity: 0.7 }"
                             />
                           </div>
                           <span class="text-xs opacity-80">{{ getCellBlock(day.key, rowIndex)!.topic }}</span>
@@ -92,7 +92,7 @@
 
             <!-- Legend -->
             <div class="mt-4 flex items-center gap-6 text-sm flex-wrap">
-              <div v-for="(info, key) in subjectMap" :key="key" class="flex items-center gap-2">
+              <div v-for="info in subjectLegend" :key="info.name" class="flex items-center gap-2">
                 <div class="w-4 h-4 rounded" :style="{ backgroundColor: info.bgColor }" />
                 <span class="text-gray-600">{{ info.name }}</span>
               </div>
@@ -113,12 +113,12 @@
                 <Target :size="20" class="text-emerald-600" />
                 <h3 class="text-lg font-bold">과목별 우선순위</h3>
               </div>
-              <p class="text-sm text-gray-600">약점 분석 기반 학습 우선순위</p>
+              <p class="text-sm text-gray-600">최우선은 등급 격차 2단계 이상, 높음은 등급 격차 1단계 또는 취약 단원 3개 이상입니다</p>
             </div>
             <div class="px-6 pb-6">
               <div class="space-y-4">
                 <div
-                  v-for="(subject, index) in subjectPriority"
+                  v-for="(subject, index) in subjectPriorities"
                   :key="index"
                   class="p-4 bg-gray-50 rounded-lg border border-gray-200"
                 >
@@ -131,7 +131,7 @@
                     </div>
                     <div class="text-right">
                       <p class="text-xs text-gray-500">현재 → 목표</p>
-                      <p class="text-sm font-bold">{{ subject.current }}등급 → {{ subject.target }}등급</p>
+                      <p class="text-sm font-bold">{{ formatGrade(subject.current) }} → {{ formatGrade(subject.target) }}</p>
                     </div>
                   </div>
                   <div class="text-xs text-gray-500 mb-2">
@@ -140,6 +140,9 @@
                   <div v-if="subject.gap > 0" class="flex items-center gap-1 text-xs text-amber-600">
                     <AlertCircle :size="12" />
                     <span>등급 격차 {{ subject.gap }}단계 - 집중 학습 필요</span>
+                  </div>
+                  <div v-else class="text-xs text-gray-500">
+                    {{ priorityReason(subject) }}
                   </div>
                 </div>
               </div>
@@ -159,12 +162,11 @@
               <div class="mb-6">
                 <p class="text-sm font-semibold text-gray-700 mb-3">실시간 산출된 과목별 시간 권장 비중</p>
                 <div class="space-y-4">
-                  <div v-for="(subject, index) in subjectPriority" :key="index">
+                  <div v-for="(subject, index) in subjectPriorities" :key="index">
                     <div class="flex items-center justify-between mb-2">
                       <span class="text-sm font-medium text-gray-900">{{ subject.subject }}</span>
                       <span class="text-sm font-bold" :style="{ color: subject.color }">
                         {{ subject.percentage }}%
-                        <span v-if="index === 0" class="text-xs text-emerald-600 ml-1">(기존의 2.2배 가중)</span>
                       </span>
                     </div>
                     <div class="h-2 bg-gray-200 rounded-full overflow-hidden">
@@ -183,7 +185,7 @@
                   <div>
                     <p class="text-sm font-semibold text-emerald-900">비전 AI OTR 연동 집중도 분석 결과</p>
                     <p class="text-xs text-emerald-700 mt-1">
-                      집중 콘텐츠 패턴이 확복 오후 14시~16시에 가장 높은 "수학 미적분" 과목이 집중 예비로 선정되었습니다.
+                      고집중 시간대 {{ timeWeightAnalysis.highConcentrationTimes.join(', ') }}에 우선순위가 높은 과목을 배치했습니다.
                     </p>
                   </div>
                 </div>
@@ -221,22 +223,72 @@
 </template>
 
 <script setup lang="ts">
+import { computed, onMounted, ref } from 'vue'
 import Sidebar from '@/components/Sidebar.vue'
 import { ArrowLeft, Clock, Sparkles, Target, TrendingUp, AlertCircle, CheckCircle } from 'lucide-vue-next'
 
-type SubjectKey = 'math' | 'korean' | 'english' | 'science1' | 'rest'
+type SubjectStyle = {
+  name: string
+  color: string
+  bgColor: string
+  textColor: string
+}
 
-const subjectMap: Record<SubjectKey, { name: string; color: string; bgColor: string; textColor: string }> = {
-  math:     { name: '수학',      color: '#10b981', bgColor: '#d1fae5', textColor: '#065f46' },
-  korean:   { name: '국어',      color: '#f59e0b', bgColor: '#fef3c7', textColor: '#92400e' },
-  english:  { name: '영어',      color: '#3b82f6', bgColor: '#dbeafe', textColor: '#1e40af' },
-  science1: { name: '생명과학1', color: '#8b5cf6', bgColor: '#ede9fe', textColor: '#5b21b6' },
-  rest:     { name: '휴식',      color: '#9ca3af', bgColor: '#f3f4f6', textColor: '#4b5563' },
+type Priority = 'urgent' | 'high' | 'medium'
+
+type SubjectPriority = {
+  subject: string
+  current: number | null
+  target: number | null
+  priority: Priority
+  gap: number
+  weakUnits: string[]
+  percentage: number
+  color: string
+  weight: number
+}
+
+type ApiPlanSlot = {
+  subject: string
+  unit: string
+  date: string
+  start_time: string
+  end_time: string
+}
+
+type ApiPlanResponse = {
+  analysis?: {
+    subjectPriorities?: SubjectPriority[]
+    timeWeightAnalysis?: {
+      totalStudySlots: number
+      maxSubjectSlots: number
+      highConcentrationTimes: string[]
+      formula: string
+    }
+  }
+  slots?: ApiPlanSlot[]
+}
+
+const STUDENT_ID = 1
+const API_BASE_URL =
+  (import.meta as ImportMeta & { env?: { VITE_API_BASE_URL?: string } }).env
+    ?.VITE_API_BASE_URL ?? 'http://localhost:3000'
+
+const baseSubjectStyles: Record<string, SubjectStyle> = {
+  수학: { name: '수학', color: '#10b981', bgColor: '#d1fae5', textColor: '#065f46' },
+  국어: { name: '국어', color: '#f59e0b', bgColor: '#fef3c7', textColor: '#92400e' },
+  영어: { name: '영어', color: '#3b82f6', bgColor: '#dbeafe', textColor: '#1e40af' },
+  사회: { name: '사회', color: '#f97316', bgColor: '#ffedd5', textColor: '#9a3412' },
+  과학: { name: '과학', color: '#06b6d4', bgColor: '#cffafe', textColor: '#155e75' },
+  한국사: { name: '한국사', color: '#ec4899', bgColor: '#fce7f3', textColor: '#9d174d' },
+  생명과학1: { name: '생명과학1', color: '#8b5cf6', bgColor: '#ede9fe', textColor: '#5b21b6' },
+  지구과학1: { name: '지구과학1', color: '#06b6d4', bgColor: '#cffafe', textColor: '#155e75' },
+  휴식: { name: '휴식', color: '#9ca3af', bgColor: '#f3f4f6', textColor: '#4b5563' },
 }
 
 const timeSlots = ['06시', '08시', '10시', '12시', '14시', '16시', '18시', '20시', '22시']
 
-const days = [
+const days = ref([
   { key: 'mon', label: '월' },
   { key: 'tue', label: '화' },
   { key: 'wed', label: '수' },
@@ -244,109 +296,126 @@ const days = [
   { key: 'fri', label: '금' },
   { key: 'sat', label: '토' },
   { key: 'sun', label: '일' },
-]
+])
 
 type ScheduleBlock = {
-  subject: SubjectKey
+  subject: string
   topic: string
   startRow: number
   rowSpan: number
   concentration: number
 }
 
-const weekSchedule: Record<string, ScheduleBlock[]> = {
-  mon: [
-    { subject: 'math',     topic: '미적분',   startRow: 0, rowSpan: 1, concentration: 85 },
-    { subject: 'korean',   topic: '문학',     startRow: 1, rowSpan: 1, concentration: 75 },
-    { subject: 'rest',     topic: '휴식',     startRow: 2, rowSpan: 1, concentration: 70 },
-    { subject: 'rest',     topic: '점심',     startRow: 3, rowSpan: 1, concentration: 45 },
-    { subject: 'english',  topic: '독해',     startRow: 4, rowSpan: 1, concentration: 65 },
-    { subject: 'science1', topic: '유전',     startRow: 5, rowSpan: 1, concentration: 60 },
-    { subject: 'rest',     topic: '휴식',     startRow: 6, rowSpan: 1, concentration: 50 },
-    { subject: 'math',     topic: '적분 심화', startRow: 7, rowSpan: 1, concentration: 90 },
-    { subject: 'science1', topic: '항상성',   startRow: 8, rowSpan: 1, concentration: 88 },
-  ],
-  tue: [
-    { subject: 'math',     topic: '극한',     startRow: 0, rowSpan: 1, concentration: 85 },
-    { subject: 'korean',   topic: '독서',     startRow: 1, rowSpan: 1, concentration: 75 },
-    { subject: 'korean',   topic: '언어',     startRow: 2, rowSpan: 1, concentration: 70 },
-    { subject: 'rest',     topic: '점심',     startRow: 3, rowSpan: 1, concentration: 45 },
-    { subject: 'english',  topic: '문법',     startRow: 4, rowSpan: 1, concentration: 60 },
-    { subject: 'math',     topic: '미분',     startRow: 5, rowSpan: 1, concentration: 60 },
-    { subject: 'rest',     topic: '휴식',     startRow: 6, rowSpan: 1, concentration: 50 },
-    { subject: 'english',  topic: '빈칸 추론', startRow: 7, rowSpan: 1, concentration: 90 },
-    { subject: 'science1', topic: '세포',     startRow: 8, rowSpan: 1, concentration: 88 },
-  ],
-  wed: [
-    { subject: 'math',     topic: '수열',     startRow: 0, rowSpan: 1, concentration: 85 },
-    { subject: 'english',  topic: '독해',     startRow: 1, rowSpan: 1, concentration: 75 },
-    { subject: 'korean',   topic: '문학',     startRow: 2, rowSpan: 1, concentration: 70 },
-    { subject: 'rest',     topic: '점심',     startRow: 3, rowSpan: 1, concentration: 45 },
-    { subject: 'english',  topic: '어휘',     startRow: 4, rowSpan: 1, concentration: 60 },
-    { subject: 'science1', topic: '호르몬',   startRow: 5, rowSpan: 1, concentration: 60 },
-    { subject: 'rest',     topic: '휴식',     startRow: 6, rowSpan: 1, concentration: 50 },
-    { subject: 'korean',   topic: '비문학',   startRow: 7, rowSpan: 1, concentration: 90 },
-    { subject: 'math',     topic: '미적분',   startRow: 8, rowSpan: 1, concentration: 88 },
-  ],
-  thu: [
-    { subject: 'math',     topic: '적분',     startRow: 0, rowSpan: 1, concentration: 85 },
-    { subject: 'science1', topic: '유전자',   startRow: 1, rowSpan: 1, concentration: 75 },
-    { subject: 'english',  topic: '독해',     startRow: 2, rowSpan: 1, concentration: 70 },
-    { subject: 'rest',     topic: '점심',     startRow: 3, rowSpan: 1, concentration: 45 },
-    { subject: 'korean',   topic: '독서',     startRow: 4, rowSpan: 1, concentration: 60 },
-    { subject: 'english',  topic: '빈칸',     startRow: 5, rowSpan: 1, concentration: 60 },
-    { subject: 'rest',     topic: '휴식',     startRow: 6, rowSpan: 1, concentration: 50 },
-    { subject: 'math',     topic: '수열 심화', startRow: 7, rowSpan: 1, concentration: 90 },
-    { subject: 'science1', topic: '신경계',   startRow: 8, rowSpan: 1, concentration: 88 },
-  ],
-  fri: [
-    { subject: 'math',     topic: '미적분',   startRow: 0, rowSpan: 1, concentration: 85 },
-    { subject: 'korean',   topic: '문학',     startRow: 1, rowSpan: 1, concentration: 75 },
-    { subject: 'science1', topic: '항상성',   startRow: 2, rowSpan: 1, concentration: 70 },
-    { subject: 'rest',     topic: '점심',     startRow: 3, rowSpan: 1, concentration: 45 },
-    { subject: 'english',  topic: '독해',     startRow: 4, rowSpan: 1, concentration: 60 },
-    { subject: 'math',     topic: '극한',     startRow: 5, rowSpan: 1, concentration: 60 },
-    { subject: 'rest',     topic: '휴식',     startRow: 6, rowSpan: 1, concentration: 50 },
-    { subject: 'korean',   topic: '비문학',   startRow: 7, rowSpan: 1, concentration: 90 },
-    { subject: 'science1', topic: '세포 분열', startRow: 8, rowSpan: 1, concentration: 88 },
-  ],
-  sat: [
-    { subject: 'math',     topic: '모의고사', startRow: 0, rowSpan: 1, concentration: 85 },
-    { subject: 'korean',   topic: '모의고사', startRow: 1, rowSpan: 1, concentration: 75 },
-    { subject: 'english',  topic: '모의고사', startRow: 2, rowSpan: 1, concentration: 70 },
-    { subject: 'rest',     topic: '점심',    startRow: 3, rowSpan: 1, concentration: 45 },
-    { subject: 'science1', topic: '모의고사', startRow: 4, rowSpan: 1, concentration: 60 },
-    { subject: 'rest',     topic: '휴식',    startRow: 5, rowSpan: 1, concentration: 60 },
-    { subject: 'rest',     topic: '휴식',    startRow: 6, rowSpan: 1, concentration: 50 },
-    { subject: 'math',     topic: '오답정리', startRow: 7, rowSpan: 1, concentration: 90 },
-    { subject: 'korean',   topic: '오답정리', startRow: 8, rowSpan: 1, concentration: 88 },
-  ],
-  sun: [
-    { subject: 'rest',     topic: '휴식',    startRow: 0, rowSpan: 1, concentration: 70 },
-    { subject: 'rest',     topic: '휴식',    startRow: 1, rowSpan: 1, concentration: 70 },
-    { subject: 'english',  topic: '어휘 복습', startRow: 2, rowSpan: 1, concentration: 65 },
-    { subject: 'rest',     topic: '점심',    startRow: 3, rowSpan: 1, concentration: 45 },
-    { subject: 'rest',     topic: '휴식',    startRow: 4, rowSpan: 1, concentration: 60 },
-    { subject: 'math',     topic: '약점 복습', startRow: 5, rowSpan: 1, concentration: 60 },
-    { subject: 'rest',     topic: '휴식',    startRow: 6, rowSpan: 1, concentration: 50 },
-    { subject: 'science1', topic: '개념 정리', startRow: 7, rowSpan: 1, concentration: 85 },
-    { subject: 'rest',     topic: '휴식',    startRow: 8, rowSpan: 1, concentration: 80 },
-  ],
+const weekSchedule = ref<Record<string, ScheduleBlock[]>>({})
+const subjectPriorities = ref<SubjectPriority[]>([])
+const timeWeightAnalysis = ref({
+  totalStudySlots: 0,
+  maxSubjectSlots: 0,
+  highConcentrationTimes: [] as string[],
+  formula: '',
+})
+
+const startRowsByTime: Record<string, number> = {
+  '06:00': 0,
+  '08:00': 1,
+  '10:00': 2,
+  '12:00': 3,
+  '14:00': 4,
+  '16:00': 5,
+  '18:00': 6,
+  '20:00': 7,
+  '22:00': 8,
 }
 
-const subjectPriority = [
-  { subject: '수학',      current: 3, target: 1, priority: 'urgent', gap: 2, weakUnits: ['수열의 극한', '적분'],             percentage: 34, color: '#10b981' },
-  { subject: '국어',      current: 2, target: 1, priority: 'high',   gap: 1, weakUnits: ['비문학 추론', '고전소설'],          percentage: 24, color: '#f59e0b' },
-  { subject: '영어',      current: 1, target: 1, priority: 'medium', gap: 0, weakUnits: ['빈칸 추론'],                        percentage: 22, color: '#3b82f6' },
-  { subject: '생명과학1', current: 2, target: 1, priority: 'high',   gap: 1, weakUnits: ['호르몬과 항상성', '유전자 발현'],  percentage: 20, color: '#8b5cf6' },
-]
+const subjectLegend = computed(() => {
+  const subjects = new Set<string>()
+  for (const blocks of Object.values(weekSchedule.value)) {
+    for (const block of blocks) {
+      subjects.add(block.subject)
+    }
+  }
+
+  return [...subjects].map((subject) => getSubjectStyle(subject))
+})
+
+onMounted(async () => {
+  const response = await fetch(`${API_BASE_URL}/students/${STUDENT_ID}/study-plans/latest`)
+  if (!response.ok) {
+    return
+  }
+
+  const data = await response.json() as ApiPlanResponse
+  subjectPriorities.value = data.analysis?.subjectPriorities ?? []
+  timeWeightAnalysis.value = data.analysis?.timeWeightAnalysis ?? timeWeightAnalysis.value
+  applyScheduleSlots(data.slots ?? [])
+})
+
+function applyScheduleSlots(slots: ApiPlanSlot[]) {
+  const dateKeys = [...new Set(slots.map((slot) => slot.date))]
+  days.value = dateKeys.map((date, index) => ({
+    key: date,
+    label: formatDayLabel(date, index),
+  }))
+
+  weekSchedule.value = Object.fromEntries(
+    dateKeys.map((date) => [
+      date,
+      slots
+        .filter((slot) => slot.date === date)
+        .map((slot) => ({
+          subject: slot.subject,
+          topic: slot.unit,
+          startRow: startRowsByTime[slot.start_time.slice(0, 5)] ?? 0,
+          rowSpan: 1,
+          concentration: getConcentration(slot.start_time.slice(0, 5)),
+        }))
+        .sort((a, b) => a.startRow - b.startRow),
+    ]),
+  )
+}
+
+function formatDayLabel(date: string, index: number): string {
+  const fallbackLabels = ['월', '화', '수', '목', '금', '토', '일']
+  const parsedDate = new Date(`${date}T00:00:00`)
+  if (Number.isNaN(parsedDate.getTime())) {
+    return fallbackLabels[index] ?? date
+  }
+
+  return new Intl.DateTimeFormat('ko-KR', { weekday: 'short' }).format(parsedDate)
+}
+
+function getConcentration(startTime: string): number {
+  if (startTime === '06:00' || startTime === '20:00' || startTime === '22:00') {
+    return 90
+  }
+  if (startTime === '08:00' || startTime === '10:00') {
+    return 75
+  }
+  if (startTime === '12:00' || startTime === '18:00') {
+    return 45
+  }
+  return 60
+}
+
+function getSubjectStyle(subject: string): SubjectStyle {
+  return baseSubjectStyles[subject] ?? {
+    name: subject,
+    color: '#64748b',
+    bgColor: '#f1f5f9',
+    textColor: '#334155',
+  }
+}
+
+function formatGrade(grade: number | null): string {
+  return grade === null ? '-' : `${grade}등급`
+}
 
 function getCellBlock(dayKey: string, rowIndex: number): ScheduleBlock | undefined {
-  return weekSchedule[dayKey].find(b => b.startRow === rowIndex)
+  return weekSchedule.value[dayKey]?.find(b => b.startRow === rowIndex)
 }
 
 function shouldRenderCell(dayKey: string, rowIndex: number): boolean {
-  const schedule = weekSchedule[dayKey]
+  const schedule = weekSchedule.value[dayKey] ?? []
   if (schedule.find(b => b.startRow === rowIndex)) return true
   return !schedule.some(b => b.startRow < rowIndex && b.startRow + b.rowSpan > rowIndex)
 }
@@ -359,13 +428,25 @@ function getRowSpan(dayKey: string, rowIndex: number): number {
 function priorityBadgeClass(priority: string): string {
   const base = 'text-xs px-2 py-1 rounded font-medium'
   if (priority === 'urgent') return `${base} bg-red-100 text-red-700`
-  if (priority === 'high')   return `${base} bg-orange-100 text-orange-700`
+  if (priority === 'high') return `${base} bg-orange-100 text-orange-700`
   return `${base} bg-gray-100 text-gray-700`
 }
 
 function priorityLabel(priority: string): string {
-  if (priority === 'urgent') return '긴급'
-  if (priority === 'high')   return '높음'
+  if (priority === 'urgent') return '최우선'
+  if (priority === 'high') return '높음'
   return '보통'
+}
+
+function priorityReason(subject: SubjectPriority): string {
+  const weakUnitCount = subject.weakUnits.filter((unit) => unit !== '기본 복습').length
+  if (subject.priority === 'urgent') {
+    return '등급 격차 2단계 이상 - 최우선 학습 필요'
+  }
+  if (subject.priority === 'high') {
+    return weakUnitCount >= 3 ? `취약 단원 ${weakUnitCount}개 - 높음` : '등급 격차 1단계 - 높음'
+  }
+
+  return '등급 격차와 취약 단원 기준상 보통'
 }
 </script>
