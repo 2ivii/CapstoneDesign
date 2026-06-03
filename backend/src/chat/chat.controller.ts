@@ -25,18 +25,18 @@ export class ChatController {
   @ApiBody({
     schema: {
       type: 'object',
-      required: ['image'],
+      required: ['image', 'examYear', 'examOrg', 'questionNo'],
       properties: {
         image:      { type: 'string', format: 'binary', description: '문제 사진 (필수)' },
+        examYear:   { type: 'string', description: '학년도 (필수) — 예: 2026' },
+        examOrg:    { type: 'string', description: '시행주체 (필수) — 교육청 | 평가원 | 수능' },
+        questionNo: { type: 'string', description: '문항 번호 (필수) — 예: 21' },
+        examMonth:  { type: 'string', description: '월 (수능 외 필수) — 예: 3' },
+        examGrade:  { type: 'string', description: '학년 (수능 외 필수) — 고1 | 고2 | 고3' },
         subject:    { type: 'string', description: '과목 힌트 (선택) — 수학/국어/영어/과학/사회' },
         message:    { type: 'string', description: '추가 질문 (선택)' },
         studentId:  { type: 'string', description: '학생 ID (선택) — 없으면 세션 저장 스킵' },
         chatId:     { type: 'string', description: '기존 세션 ID (선택) — 이어서 풀이' },
-        examYear:   { type: 'string', description: '학년도 (선택) — 예: 2026' },
-        examMonth:  { type: 'string', description: '월 (선택) — 예: 3' },
-        examOrg:    { type: 'string', description: '시행주체 (선택) — 교육청 | 평가원 | 수능' },
-        examGrade:  { type: 'string', description: '학년 (선택) — 고1 | 고2 | 고3 (수능이면 생략)' },
-        questionNo: { type: 'string', description: '문항 번호 (선택) — 예: 21' },
       },
     },
   })

@@ -20,6 +20,7 @@ export interface SessionDto {
   chatId: number;
   name: string;
   createdAt: Date;
+  preview: string;
 }
 
 export interface MessageDto {

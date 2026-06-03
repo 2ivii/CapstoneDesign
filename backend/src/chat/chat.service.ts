@@ -50,6 +50,13 @@ export class ChatService {
   ): Promise<SolveResponseDto> {
     if (!file) throw new BadRequestException('이미지 파일이 필요합니다.');
 
+    if (!dto.examYear || !dto.examOrg || !dto.questionNo) {
+      throw new BadRequestException('examYear, examOrg, questionNo는 필수입니다.');
+    }
+    if (dto.examOrg !== '수능' && (!dto.examMonth || !dto.examGrade)) {
+      throw new BadRequestException('수능 이외의 시험은 examMonth와 examGrade도 필수입니다.');
+    }
+
     const image = file.buffer.toString('base64');
     const mimeType = file.mimetype;
     const studentId = dto.studentId ? Number(dto.studentId) : undefined;
@@ -169,11 +176,21 @@ export class ChatService {
       where: { student_id: studentId },
       order: { created_at: 'DESC' },
     });
-    return sessions.map((s) => ({
-      chatId: s.chat_id,
-      name: s.name,
-      createdAt: s.created_at,
-    }));
+
+    return Promise.all(
+      sessions.map(async (s) => {
+        const firstMsg = await this.messageRepo.findOne({
+          where: { chat_id: s.chat_id, sender: 'student' },
+          order: { send_at: 'ASC' },
+        });
+        return {
+          chatId: s.chat_id,
+          name: s.name,
+          createdAt: s.created_at,
+          preview: firstMsg?.content?.slice(0, 60) ?? '',
+        };
+      }),
+    );
   }
 
   async getMessages(chatId: number): Promise<MessageDto[]> {
