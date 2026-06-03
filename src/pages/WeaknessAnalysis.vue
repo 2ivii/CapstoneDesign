@@ -456,15 +456,26 @@ async function generateAndNavigate() {
   isPlanGenerating.value = true
   planError.value = ''
   try {
-    const res = await fetch(`${API_BASE_URL}/students/${STUDENT_ID}/study-plans/generate`, {
+    // 1단계: 취약영역 분석 결과를 DB에 저장
+    const analyzeRes = await fetch(`${API_BASE_URL}/students/${STUDENT_ID}/weak-areas`, {
+      method: 'POST',
+    })
+    if (!analyzeRes.ok) {
+      const body = await analyzeRes.json().catch(() => ({})) as { message?: string }
+      throw new Error(body.message ?? `취약영역 저장 실패 (${analyzeRes.status})`)
+    }
+
+    // 2단계: 저장된 취약영역 기반으로 플래너 생성
+    const planRes = await fetch(`${API_BASE_URL}/students/${STUDENT_ID}/study-plans/generate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({}),
     })
-    if (!res.ok) {
-      const body = await res.json().catch(() => ({})) as { message?: string }
-      throw new Error(body.message ?? `플래너 생성 실패 (${res.status})`)
+    if (!planRes.ok) {
+      const body = await planRes.json().catch(() => ({})) as { message?: string }
+      throw new Error(body.message ?? `플래너 생성 실패 (${planRes.status})`)
     }
+
     await router.push('/ai-planner')
   } catch (e) {
     planError.value = e instanceof Error ? e.message : '플래너 생성 중 오류가 발생했습니다.'
