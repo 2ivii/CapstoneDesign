@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import OpenAI from 'openai';
@@ -10,19 +10,19 @@ interface SubjectResult {
   score: number;
   grade: number;
   percentile: number;
-  wrong_answers: number[];
   correct_rate: number | null;
 }
 
 interface OcrResult {
   exam_name: string;
   year: number;
+  month: number;
   grade_level: number;
   subjects: SubjectResult[];
 }
 
 interface OxResult {
-  [subject: string]: string; // 예: { "국어": "OOXOOO..." }
+  [subject: string]: string;
 }
 
 @Injectable()
@@ -44,29 +44,26 @@ export class ExamService {
   async extractAndSave(
     studentId: number,
     file: Express.Multer.File,
-  ): Promise<{ exam_id: number; subjects_count: number }> {
+  ): Promise<{
+    exam_id: number;
+    subjects_count: number;
+    subjects: Array<{ subject: string; score: number; grade: number; percent: number; wrong_answer: number[] }>;
+  }> {
     const student = await this.studentRepo.findOneBy({ student_id: studentId });
     if (!student) throw new BadRequestException('Student not found');
 
-    const [mainResult, oxResult] = await Promise.all([
-      this.callGptMainScores(file),
-      this.callGptOxStrings(file),
-    ]);
-
-    const subjects = mainResult.subjects.map((sub) => ({
-      ...sub,
-      wrong_answers: this.oxToWrongAnswers(oxResult[sub.subject] ?? ''),
-    }));
+    const mainResult = await this.callGptMainScores(file);
 
     const mockExam = await this.mockExamRepo.save(
       this.mockExamRepo.create({
         name: mainResult.exam_name,
         year: mainResult.year,
+        exam_month: mainResult.month,
         grade_level: mainResult.grade_level,
       }),
     );
 
-    const examSubjects = subjects.map((sub) =>
+    const examSubjects = mainResult.subjects.map((sub) =>
       this.examSubjectRepo.create({
         exam_id: mockExam.exam_id,
         student_id: studentId,
@@ -74,13 +71,52 @@ export class ExamService {
         score: Math.round(sub.score * 10) / 10,
         grade: Math.round(sub.grade),
         percent: Math.round(sub.percentile * 100) / 100,
-        wrong_answer: sub.wrong_answers,
+        wrong_answer: [],
         correct_rate: sub.correct_rate,
       }),
     );
     await this.examSubjectRepo.save(examSubjects);
 
-    return { exam_id: mockExam.exam_id, subjects_count: examSubjects.length };
+    return {
+      exam_id: mockExam.exam_id,
+      subjects_count: examSubjects.length,
+      subjects: examSubjects.map((s) => ({
+        subject: s.subject,
+        score: Number(s.score),
+        grade: s.grade,
+        percent: Number(s.percent),
+        wrong_answer: s.wrong_answer,
+      })),
+    };
+  }
+
+  async extractWrongAnswers(
+    studentId: number,
+    examId: number,
+    file: Express.Multer.File,
+  ): Promise<{
+    subjects: Array<{ subject: string; wrong_answer: number[] }>;
+  }> {
+    const examSubjects = await this.examSubjectRepo.find({
+      where: { exam_id: examId, student_id: studentId },
+    });
+    if (!examSubjects.length) throw new NotFoundException('해당 시험 과목 데이터가 없습니다');
+
+    const oxResult = await this.callGptOxStrings(file);
+
+    const updated = await Promise.all(
+      examSubjects.map(async (sub) => {
+        sub.wrong_answer = this.oxToWrongAnswers(oxResult[sub.subject] ?? '');
+        return this.examSubjectRepo.save(sub);
+      }),
+    );
+
+    return {
+      subjects: updated.map((s) => ({
+        subject: s.subject,
+        wrong_answer: s.wrong_answer,
+      })),
+    };
   }
 
   private async callGptMainScores(file: Express.Multer.File): Promise<OcrResult> {
@@ -93,6 +129,7 @@ export class ExamService {
 ## 각 필드 추출 위치
 - exam_name: 성적표 상단의 시험 전체 명칭
 - year: exam_name에서 연도 숫자만 추출
+- month: exam_name에서 시행 월 숫자만 추출 (예: "3월" → 3, "6월" → 6)
 - score: 상단 표의 [원점수 > 득점] 열 값
 - grade: 상단 표의 [표준점수에 의한 석차/백분위/등급 > 등급] 열 값 (정수)
 - percentile: 상단 표의 [표준점수에 의한 석차/백분위/등급 > 전국백분위] 열 값 (숫자)
@@ -102,6 +139,7 @@ export class ExamService {
 {
   "exam_name": "시험 전체 명칭 (예: 2026학년도 3월 고1 전국연합학력평가)",
   "year": 연도_숫자,
+  "month": 시행_월_숫자,
   "grade_level": 학년_정수 (고1=1, 고2=2, 고3=3),
   "subjects": [
     {
@@ -109,7 +147,6 @@ export class ExamService {
       "score": 득점_숫자,
       "grade": 등급_숫자,
       "percentile": 전국백분위_숫자,
-      "wrong_answers": [],
       "correct_rate": null
     }
   ]
@@ -118,7 +155,7 @@ export class ExamService {
     const dataUrl = `data:${file.mimetype};base64,${file.buffer.toString('base64')}`;
 
     const response = await this.openai.chat.completions.create({
-      model: 'gpt-5.4-mini',
+      model: 'gpt-5.4',
       messages: [
         {
           role: 'user',
@@ -197,7 +234,7 @@ JSON만 반환하세요. 마크다운 코드블록이나 설명 없이 JSON만 �
     const dataUrl = `data:${file.mimetype};base64,${file.buffer.toString('base64')}`;
 
     const response = await this.openai.chat.completions.create({
-      model: 'gpt-5.5',
+      model: 'gpt-5.4',
       messages: [
         {
           role: 'user',
