@@ -448,22 +448,22 @@ type FollowupResponse = {
 const STUDENT_ID = 1
 
 const subjects = [
-  { id: 'math',     name: '수학',      color: '#10b981' },
-  { id: 'korean',   name: '국어',      color: '#f59e0b' },
-  { id: 'english',  name: '영어',      color: '#3b82f6' },
-  { id: 'science1', name: '생명과학1', color: '#8b5cf6' },
-  { id: 'science2', name: '지구과학1', color: '#06b6d4' },
-  { id: 'history',  name: '한국사',    color: '#ec4899' },
+  { id: 'math',    name: '수학',  color: '#10b981' },
+  { id: 'korean',  name: '국어',  color: '#f59e0b' },
+  { id: 'english', name: '영어',  color: '#3b82f6' },
+  { id: 'science', name: '과학',  color: '#8b5cf6' },
+  { id: 'social',  name: '사회',  color: '#06b6d4' },
+  { id: 'history', name: '한국사', color: '#ec4899' },
 ]
 
 const subjectToApi: Record<string, string> = {
   math: '수학', korean: '국어', english: '영어',
-  science1: '과학', science2: '과학', history: '사회',
+  science: '과학', social: '사회', history: '사회',
 }
 
 const nameToSubjectId: Record<string, string> = {
   '수학': 'math', '국어': 'korean', '영어': 'english',
-  '과학': 'science1', '사회': 'history',
+  '과학': 'science', '사회': 'social',
 }
 
 function subjectIdFromName(name: string): string {
