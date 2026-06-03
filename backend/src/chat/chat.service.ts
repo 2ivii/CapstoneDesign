@@ -176,11 +176,21 @@ export class ChatService {
       where: { student_id: studentId },
       order: { created_at: 'DESC' },
     });
-    return sessions.map((s) => ({
-      chatId: s.chat_id,
-      name: s.name,
-      createdAt: s.created_at,
-    }));
+
+    return Promise.all(
+      sessions.map(async (s) => {
+        const firstMsg = await this.messageRepo.findOne({
+          where: { chat_id: s.chat_id, sender: 'student' },
+          order: { send_at: 'ASC' },
+        });
+        return {
+          chatId: s.chat_id,
+          name: s.name,
+          createdAt: s.created_at,
+          preview: firstMsg?.content?.slice(0, 60) ?? '',
+        };
+      }),
+    );
   }
 
   async getMessages(chatId: number): Promise<MessageDto[]> {

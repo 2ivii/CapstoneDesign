@@ -415,6 +415,7 @@ type SessionResponse = {
   chatId: number
   name: string
   createdAt: string
+  preview: string
 }
 
 type MessageResponse = {
@@ -549,7 +550,7 @@ onMounted(async () => {
       apiChatId: s.chatId,
       title: s.name,
       subject: subjectIdFromName(s.name),
-      lastMessage: '',
+      lastMessage: s.preview,
       timestamp: new Date(s.createdAt),
       messages: [],
       initialized: true,
