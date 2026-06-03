@@ -50,6 +50,13 @@ export class ChatService {
   ): Promise<SolveResponseDto> {
     if (!file) throw new BadRequestException('이미지 파일이 필요합니다.');
 
+    if (!dto.examYear || !dto.examOrg || !dto.questionNo) {
+      throw new BadRequestException('examYear, examOrg, questionNo는 필수입니다.');
+    }
+    if (dto.examOrg !== '수능' && (!dto.examMonth || !dto.examGrade)) {
+      throw new BadRequestException('수능 이외의 시험은 examMonth와 examGrade도 필수입니다.');
+    }
+
     const image = file.buffer.toString('base64');
     const mimeType = file.mimetype;
     const studentId = dto.studentId ? Number(dto.studentId) : undefined;
