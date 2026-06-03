@@ -44,7 +44,7 @@
                 <div class="flex items-center justify-between mb-1">
                   <h3 class="text-lg font-bold text-gray-900">{{ subject.label }}</h3>
                   <span class="text-xs bg-emerald-100 text-emerald-700 px-2 py-1 rounded font-medium">
-                    {{ wrongAnswers[subject.id].size }}개 선택
+                    {{ wrongAnswers[subject.id]?.size ?? 0 }}개 선택
                   </span>
                 </div>
                 <p class="text-xs text-gray-500">({{ subject.total }}문항)</p>
@@ -58,7 +58,7 @@
                   @click="toggleAnswer(subject.id, num)"
                   :class="[
                     'h-10 rounded-lg text-sm font-medium transition-all',
-                    wrongAnswers[subject.id].has(num)
+                    wrongAnswers[subject.id]?.has(num)
                       ? 'bg-rose-500 text-white shadow-md hover:bg-rose-600'
                       : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                   ]"
@@ -69,7 +69,7 @@
 
               <!-- Clear Button -->
               <button
-                @click="wrongAnswers[subject.id].clear()"
+                @click="clearSubject(subject.id)"
                 class="w-full mt-4 pt-3 border-t text-xs text-gray-500 hover:text-gray-700"
               >
                 전체 해제
@@ -101,42 +101,65 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import Sidebar from '@/components/Sidebar.vue'
 import { ArrowLeft } from 'lucide-vue-next'
 
-type Subject = 'korean' | 'math' | 'english' | 'science1' | 'science2' | 'history'
+const SUBJECT_TOTALS: Record<string, number> = {
+  '국어': 45, '수학': 30, '영어': 45, '한국사': 20,
+}
 
-const wrongAnswers = ref<Record<Subject, Set<number>>>({
-  korean: new Set([13, 22]),
-  math: new Set([14, 21, 22, 29, 30]),
-  english: new Set([31, 33, 34]),
-  science1: new Set([15, 17]),
-  science2: new Set(),
-  history: new Set(),
+interface SubjectItem {
+  id: string
+  label: string
+  total: number
+}
+
+const subjects = ref<SubjectItem[]>([])
+const wrongAnswers = ref<Record<string, Set<number>>>({})
+
+onMounted(() => {
+  const stored = localStorage.getItem('learnershigh_exam_subjects')
+  if (stored) {
+    try {
+      const parsed: Array<{ subject: string; wrong_answer: number[] }> = JSON.parse(stored)
+      const subs: SubjectItem[] = parsed.map(s => ({
+        id: s.subject,
+        label: s.subject,
+        total: SUBJECT_TOTALS[s.subject] ?? 25,
+      }))
+      const wa: Record<string, Set<number>> = {}
+      parsed.forEach(s => { wa[s.subject] = new Set(s.wrong_answer) })
+      subjects.value = subs
+      wrongAnswers.value = wa
+      return
+    } catch {
+      // fall through to defaults
+    }
+  }
+
+  // Fallback when no API data
+  const defaults: SubjectItem[] = [
+    { id: '국어', label: '국어', total: 45 },
+    { id: '수학', label: '수학', total: 30 },
+    { id: '영어', label: '영어', total: 45 },
+    { id: '한국사', label: '한국사', total: 20 },
+  ]
+  subjects.value = defaults
+  wrongAnswers.value = Object.fromEntries(defaults.map(s => [s.id, new Set<number>()]))
 })
 
-const subjects = [
-  { id: 'korean' as Subject, label: '국어', total: 45 },
-  { id: 'math' as Subject, label: '수학', total: 30 },
-  { id: 'english' as Subject, label: '영어', total: 45 },
-  { id: 'science1' as Subject, label: '생명과학1', total: 20 },
-  { id: 'science2' as Subject, label: '지구과학1', total: 20 },
-  { id: 'history' as Subject, label: '한국사', total: 20 },
-]
-
-const toggleAnswer = (subject: Subject, number: number) => {
-  if (wrongAnswers.value[subject].has(number)) {
-    wrongAnswers.value[subject].delete(number)
-  } else {
-    wrongAnswers.value[subject].add(number)
-  }
+const toggleAnswer = (id: string, num: number) => {
+  const set = wrongAnswers.value[id]
+  if (!set) return
+  if (set.has(num)) set.delete(num)
+  else set.add(num)
 }
 
-const getTotalWrongAnswers = () => {
-  return Array.from(Object.values(wrongAnswers.value)).reduce(
-    (sum, set) => sum + set.size,
-    0
-  )
+const clearSubject = (id: string) => {
+  wrongAnswers.value[id]?.clear()
 }
+
+const getTotalWrongAnswers = () =>
+  Object.values(wrongAnswers.value).reduce((sum, set) => sum + set.size, 0)
 </script>

@@ -47,7 +47,22 @@
             <div class="bg-white rounded-xl p-8 border-2 border-gray-200">
               <h2 class="text-lg font-semibold mb-6">성적표 촬영 또는 스캔</h2>
 
-              <div class="border-2 border-dashed border-gray-300 rounded-lg p-12 text-center hover:border-emerald-500 transition-colors cursor-pointer">
+              <input
+                ref="fileInputRef"
+                type="file"
+                accept="image/*"
+                class="hidden"
+                @change="handleFileSelect"
+              />
+
+              <!-- Drop Zone (no file) -->
+              <div
+                v-if="!previewUrl"
+                @click="fileInputRef?.click()"
+                @dragover.prevent
+                @drop.prevent="handleDrop"
+                class="border-2 border-dashed border-gray-300 rounded-lg p-12 text-center hover:border-emerald-500 transition-colors cursor-pointer"
+              >
                 <div class="flex flex-col items-center gap-4">
                   <div class="w-16 h-16 bg-emerald-50 rounded-full flex items-center justify-center">
                     <Camera class="w-8 h-8 text-emerald-600" />
@@ -67,12 +82,29 @@
                 </div>
               </div>
 
+              <!-- Image Preview -->
+              <div v-else class="relative rounded-lg overflow-hidden border border-gray-200">
+                <img :src="previewUrl" class="w-full object-contain max-h-64" alt="성적표 미리보기" />
+                <button
+                  @click="clearFile"
+                  class="absolute top-2 right-2 bg-white rounded-full p-1 shadow hover:bg-gray-100"
+                >
+                  <X :size="16" />
+                </button>
+              </div>
+
               <div class="mt-6 flex gap-3">
-                <button class="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center justify-center gap-2">
+                <button
+                  @click="fileInputRef?.click()"
+                  class="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center justify-center gap-2"
+                >
                   <Upload :size="16" />
                   다시 촬영
                 </button>
-                <button class="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center justify-center gap-2">
+                <button
+                  @click="fileInputRef?.click()"
+                  class="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center justify-center gap-2"
+                >
                   <Camera :size="16" />
                   갤러리 선택
                 </button>
@@ -83,51 +115,67 @@
             <div class="bg-white rounded-xl p-8 border-2 border-gray-200">
               <div class="flex items-center justify-between mb-6">
                 <h2 class="text-lg font-semibold">자동 인식 결과</h2>
-                <span class="text-sm text-emerald-600 font-medium">정확도: 98.2%</span>
+                <span v-if="!isLoading && apiSubjects.length > 0" class="text-sm text-emerald-600 font-medium">
+                  {{ apiSubjects.length }}개 과목 인식됨
+                </span>
               </div>
 
               <p class="text-sm text-gray-600 mb-6">
                 성적표 이미지를 바탕으로 자동 분석한 점수를 확인하고 수정할 수 있습니다.
               </p>
 
-              <div class="space-y-4">
-                <!-- Table Header -->
+              <!-- Loading -->
+              <div v-if="isLoading" class="flex flex-col items-center justify-center py-12 gap-4">
+                <div class="animate-spin rounded-full h-12 w-12 border-4 border-emerald-600 border-t-transparent"></div>
+                <p class="text-gray-600 text-sm">AI가 성적표를 분석 중입니다...</p>
+              </div>
+
+              <!-- Error -->
+              <div v-else-if="uploadError" class="py-8 text-center">
+                <p class="text-red-500 mb-3 text-sm">{{ uploadError }}</p>
+                <button @click="retryUpload" class="text-sm text-emerald-600 underline">
+                  다시 시도
+                </button>
+              </div>
+
+              <!-- Results -->
+              <div v-else-if="apiSubjects.length > 0" class="space-y-4">
                 <div class="grid grid-cols-4 gap-4 text-sm font-medium text-gray-500 pb-2 border-b">
                   <div>과목</div>
                   <div class="text-center">원점수</div>
                   <div class="text-center">백분위</div>
                   <div class="text-center">등급</div>
                 </div>
-
-                <!-- Table Rows -->
                 <div
-                  v-for="subject in subjects"
-                  :key="subject.id"
+                  v-for="sub in apiSubjects"
+                  :key="sub.subject"
                   class="grid grid-cols-4 gap-4 items-center"
                 >
-                  <div class="flex flex-col">
-                    <span class="font-medium text-gray-900">{{ subject.name }}</span>
-                  </div>
+                  <div class="font-medium text-gray-900">{{ sub.subject }}</div>
                   <div class="text-center">
                     <input
-                      v-model="subject.data.total"
+                      v-model.number="sub.score"
                       class="w-full text-center h-9 border border-gray-300 rounded px-2"
-                      placeholder="---"
                     />
                   </div>
                   <div class="text-center">
                     <input
-                      v-model="subject.data.score"
+                      v-model.number="sub.percent"
                       class="w-full text-center h-9 border border-gray-300 rounded px-2"
-                      placeholder="---"
                     />
                   </div>
                   <div class="text-center">
                     <span class="inline-flex items-center justify-center w-full h-9 bg-gray-50 rounded-md font-medium">
-                      {{ subject.data.grade ? `${subject.data.grade}등급` : '---' }}
+                      {{ sub.grade }}등급
                     </span>
                   </div>
                 </div>
+              </div>
+
+              <!-- Empty -->
+              <div v-else class="py-12 text-center text-gray-400 text-sm">
+                <p>성적표 이미지를 업로드하면</p>
+                <p class="mt-1">자동으로 분석됩니다.</p>
               </div>
             </div>
           </div>
@@ -141,10 +189,12 @@
         <!-- Bottom Button -->
         <div class="mt-8 flex justify-end">
           <button
-            @click="$router.push('/answer-marking')"
-            class="bg-emerald-600 hover:bg-emerald-700 text-white px-8 py-3 rounded-lg font-medium"
+            @click="goToAnswerMarking"
+            :disabled="isExtractingWrongAnswers"
+            class="bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-400 text-white px-8 py-3 rounded-lg font-medium flex items-center gap-2"
           >
-            다음 - 오답 문항 입력 →
+            <span v-if="isExtractingWrongAnswers" class="animate-spin inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full" />
+            {{ isExtractingWrongAnswers ? 'AI 오답 추출 중...' : '다음 - 오답 문항 입력 →' }}
           </button>
         </div>
       </div>
@@ -153,30 +203,134 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref } from 'vue'
+import { useRouter } from 'vue-router'
 import Sidebar from '@/components/Sidebar.vue'
 import AutoGrading from '@/components/AutoGrading.vue'
-import { Camera, Upload, Edit3 } from 'lucide-vue-next'
+import { Camera, Upload, Edit3, X } from 'lucide-vue-next'
+
+const router = useRouter()
+const STUDENT_ID = 1
 
 const inputMethod = ref<'photo' | 'manual'>('photo')
+const fileInputRef = ref<HTMLInputElement | null>(null)
+const previewUrl = ref<string | null>(null)
+const selectedFile = ref<File | null>(null)
+const isLoading = ref(false)
+const uploadError = ref<string | null>(null)
 
-const scores = ref({
-  korean:  { total: '85', score: '91', grade: '2' },
-  math:    { total: '75', score: '82', grade: '3' },
-  english: { total: '95', score: '98', grade: '1' },
-  science: { total: '43', score: '90', grade: '2' },
-  science2:{ total: '42', score: '89', grade: '2' },
-  history: { total: '44', score: '92', grade: '2' },
-})
+interface ApiSubject {
+  subject: string
+  score: number
+  grade: number
+  percent: number
+  wrong_answer: number[]
+}
 
-const subjects = computed(() => [
-  { id: 'korean',   name: '국어 (언어와 매체)', data: scores.value.korean   },
-  { id: 'math',     name: '수학 (미적분)',       data: scores.value.math     },
-  { id: 'english',  name: '영어',               data: scores.value.english  },
-  { id: 'science',  name: '생명과학1',           data: scores.value.science  },
-  { id: 'science2', name: '지구과학1',           data: scores.value.science2 },
-  { id: 'history',  name: '한국사',             data: scores.value.history  },
-])
+const apiSubjects = ref<ApiSubject[]>([])
+const examId = ref<number | null>(null)
+
+const handleFileSelect = (event: Event) => {
+  const file = (event.target as HTMLInputElement).files?.[0]
+  if (file) processFile(file)
+}
+
+const handleDrop = (event: DragEvent) => {
+  const file = event.dataTransfer?.files[0]
+  if (file && file.type.startsWith('image/')) processFile(file)
+}
+
+const processFile = (file: File) => {
+  if (previewUrl.value) URL.revokeObjectURL(previewUrl.value)
+  selectedFile.value = file
+  previewUrl.value = URL.createObjectURL(file)
+  uploadError.value = null
+  uploadFile(file)
+}
+
+const clearFile = () => {
+  if (previewUrl.value) URL.revokeObjectURL(previewUrl.value)
+  previewUrl.value = null
+  selectedFile.value = null
+  apiSubjects.value = []
+  examId.value = null
+  uploadError.value = null
+  if (fileInputRef.value) fileInputRef.value.value = ''
+}
+
+const retryUpload = () => {
+  if (selectedFile.value) uploadFile(selectedFile.value)
+}
+
+const uploadFile = async (file: File) => {
+  isLoading.value = true
+  uploadError.value = null
+  apiSubjects.value = []
+
+  const formData = new FormData()
+  formData.append('file', file)
+
+  try {
+    const res = await fetch(`/api/students/${STUDENT_ID}/exam/upload`, {
+      method: 'POST',
+      body: formData,
+    })
+    if (!res.ok) {
+      const msg = await res.text()
+      throw new Error(msg || `서버 오류 (${res.status})`)
+    }
+    const data: { exam_id: number; subjects: ApiSubject[] } = await res.json()
+    examId.value = data.exam_id ?? null
+    apiSubjects.value = data.subjects ?? []
+  } catch (e: unknown) {
+    uploadError.value = e instanceof Error ? e.message : '알 수 없는 오류가 발생했습니다.'
+  } finally {
+    isLoading.value = false
+  }
+}
+
+const isExtractingWrongAnswers = ref(false)
+
+const goToAnswerMarking = async () => {
+  if (examId.value && selectedFile.value && apiSubjects.value.length > 0) {
+    isExtractingWrongAnswers.value = true
+    try {
+      const formData = new FormData()
+      formData.append('file', selectedFile.value)
+      const res = await fetch(`/api/students/${STUDENT_ID}/exam/${examId.value}/wrong-answers`, {
+        method: 'POST',
+        body: formData,
+      })
+      if (res.ok) {
+        const data: { subjects: Array<{ subject: string; wrong_answer: number[] }> } = await res.json()
+        const wrongMap = Object.fromEntries(data.subjects.map(s => [s.subject, s.wrong_answer]))
+        apiSubjects.value = apiSubjects.value.map(s => ({
+          ...s,
+          wrong_answer: wrongMap[s.subject] ?? s.wrong_answer,
+        }))
+      } else {
+        const errText = await res.text()
+        console.error('오답 추출 API 오류:', res.status, errText)
+      }
+    } catch (e: unknown) {
+      console.error('오답 추출 실패:', e)
+    } finally {
+      isExtractingWrongAnswers.value = false
+    }
+  }
+
+  if (apiSubjects.value.length > 0) {
+    localStorage.setItem('learnershigh_exam_subjects', JSON.stringify(apiSubjects.value))
+  }
+  router.push('/answer-marking')
+}
+
+// ── Manual grading ──────────────────────────────────────────────────────────
+
+const ID_TO_NAME: Record<string, string> = {
+  korean: '국어', math: '수학', english: '영어',
+  science1: '생명과학1', science2: '지구과학1', history: '한국사',
+}
 
 const gradingSubjects = [
   {
@@ -205,21 +359,16 @@ const gradingSubjects = [
   },
 ]
 
-const handleAutoGradingComplete = (results: Record<string, { score: number; total: number; grade: string; wrongQuestions: number[] }>) => {
-  const map: Record<string, keyof typeof scores.value> = {
-    korean: 'korean', math: 'math', english: 'english',
-    science1: 'science', science2: 'science2', history: 'history',
-  }
-  Object.keys(results).forEach(id => {
-    const key = map[id]
-    if (key) {
-      scores.value[key] = {
-        total: results[id].total.toString(),
-        score: results[id].score.toString(),
-        grade: results[id].grade,
-      }
-    }
-  })
+const handleAutoGradingComplete = (
+  results: Record<string, { score: number; total: number; grade: string; wrongQuestions: number[] }>
+) => {
+  apiSubjects.value = Object.keys(results).map(id => ({
+    subject: ID_TO_NAME[id] ?? id,
+    score: results[id].total,
+    grade: parseInt(results[id].grade),
+    percent: 0,
+    wrong_answer: results[id].wrongQuestions,
+  }))
   inputMethod.value = 'photo'
 }
 </script>

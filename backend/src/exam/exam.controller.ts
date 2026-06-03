@@ -26,4 +26,25 @@ export class ExamController {
     if (!file) throw new BadRequestException('이미지 파일을 첨부해주세요');
     return this.examService.extractAndSave(studentId, file);
   }
+
+  @Post(':examId/wrong-answers')
+  @UseInterceptors(FileInterceptor('file'))
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        file: { type: 'string', format: 'binary', description: '모의고사 성적표 이미지 (오답 추출용)' },
+      },
+      required: ['file'],
+    },
+  })
+  async extractWrongAnswers(
+    @Param('studentId', ParseIntPipe) studentId: number,
+    @Param('examId', ParseIntPipe) examId: number,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    if (!file) throw new BadRequestException('이미지 파일을 첨부해주세요');
+    return this.examService.extractWrongAnswers(studentId, examId, file);
+  }
 }
