@@ -1,7 +1,7 @@
 {
-  "name": "runners-high-backend",
+  "name": "edufit-backend",
   "version": "1.0.0",
-  "description": "러너스하이 AI 학습 코치 백엔드",
+  "description": "에듀핏 AI 학습 코치 백엔드",
   "scripts": {
     "build": "nest build",
     "start": "nest start",

@@ -1,4 +1,4 @@
-# 백엔드 (러너스하이)
+# 백엔드 (에듀핏)
 
 NestJS 10 + TypeORM + PostgreSQL.
 
