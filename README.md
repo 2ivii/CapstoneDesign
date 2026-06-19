@@ -1,4 +1,4 @@
-# 러너스하이 (Runner's High AI) - Vue.js 버전
+# 에듀핏 (EduFit AI) - Vue.js 버전
 
 React에서 Vue.js로 변환한 학습 관리 애플리케이션입니다.
 
