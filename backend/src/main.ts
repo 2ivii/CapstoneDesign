@@ -7,7 +7,7 @@ async function bootstrap() {
   app.enableCors();
 
   const config = new DocumentBuilder()
-    .setTitle('러너스하이 API')
+    .setTitle('에듀핏 API')
     .setDescription('AI 학습 코치 백엔드 API 문서')
     .setVersion('1.0')
     .build();

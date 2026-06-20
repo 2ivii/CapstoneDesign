@@ -7,8 +7,8 @@
           <TrendingUp class="w-6 h-6 text-emerald-400" />
         </div>
         <div>
-          <h1 class="font-bold text-lg">러너스하이</h1>
-          <p class="text-xs text-white/60">Runner's High AI</p>
+          <h1 class="font-bold text-lg">에듀핏</h1>
+          <p class="text-xs text-white/60">EduFit AI</p>
         </div>
       </div>
     </div>

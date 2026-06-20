@@ -15,7 +15,7 @@ const DAILY_TIME_SLOTS = [
   { startTime: '16:00', endTime: '18:00', fixed: null },
   { startTime: '18:00', endTime: '20:00', fixed: { subject: '휴식', unit: '저녁시간' } },
   { startTime: '20:00', endTime: '22:00', fixed: null },
-  { startTime: '22:00', endTime: '24:00', fixed: { subject: '휴식', unit: '휴식' } },
+  { startTime: '22:00', endTime: '24:00', fixed: null },
 ] as const;
 const WEEK_DAYS = 7;
 const DAILY_STUDY_SLOT_COUNT = DAILY_TIME_SLOTS.filter((slot) => !slot.fixed).length;
@@ -241,6 +241,7 @@ export class StudyPlanService {
     }
 
     const model = this.config.get('OPENAI_MODEL', 'gpt-4o-mini');
+    const maxSubjectSlots = Math.floor(WEEKLY_STUDY_SLOT_COUNT * 0.6);
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -260,7 +261,7 @@ export class StudyPlanService {
             role: 'user',
             content: JSON.stringify({
               requirement:
-                '7일치 전체 시간표 63개를 생성하라. 각 날짜는 06:00~24:00를 2시간 단위로 나눈 9개 슬롯이어야 한다. 12:00~14:00는 반드시 {"subject":"휴식","unit":"점심시간"}, 18:00~20:00는 반드시 {"subject":"휴식","unit":"저녁시간"}, 22:00~24:00는 반드시 {"subject":"휴식","unit":"휴식"}으로 넣어라. 공부 슬롯은 plannerInput에 있는 subject와 weakUnits만 사용하라. 현재 등급과 목표 등급 차이가 큰 과목, 취약 단원이 많은 과목의 비중을 높여라. 모든 입력 과목은 최소 1회 이상 포함하고, 한 과목이 공부 슬롯 42개 중 25개를 초과하지 않게 하라. 응답은 {"slots":[{"date":"YYYY-MM-DD","startTime":"06:00","endTime":"08:00","subject":"수학","unit":"삼각비"}]} 구조만 허용한다.',
+                `7일치 전체 시간표 63개를 생성하라. 각 날짜는 06:00~24:00를 2시간 단위로 나눈 9개 슬롯이어야 한다. 12:00~14:00는 반드시 {"subject":"휴식","unit":"점심시간"}, 18:00~20:00는 반드시 {"subject":"휴식","unit":"저녁시간"}으로 넣어라. 22:00~24:00는 고정 휴식 시간이 아니며 공부 슬롯으로 배정할 수 있다. 공부 슬롯은 plannerInput에 있는 subject와 weakUnits만 사용하라. 현재 등급과 목표 등급 차이가 큰 과목, 취약 단원이 많은 과목의 비중을 높여라. 모든 입력 과목은 최소 1회 이상 포함하고, 한 과목이 공부 슬롯 ${WEEKLY_STUDY_SLOT_COUNT}개 중 ${maxSubjectSlots}개를 초과하지 않게 하라. 응답은 {"slots":[{"date":"YYYY-MM-DD","startTime":"06:00","endTime":"08:00","subject":"수학","unit":"삼각비"}]} 구조만 허용한다.`,
               dates,
               timeSlots: DAILY_TIME_SLOTS.map(({ startTime, endTime, fixed }) => ({
                 startTime,
@@ -518,7 +519,7 @@ export class StudyPlanService {
       timeWeightAnalysis: {
         totalStudySlots,
         maxSubjectSlots: Math.floor(WEEKLY_STUDY_SLOT_COUNT * 0.6),
-        highConcentrationTimes: ['06:00~08:00', '20:00~22:00'],
+        highConcentrationTimes: ['06:00~08:00', '20:00~22:00', '22:00~24:00'],
         formula: 'gradeGap * 2 + weakUnitCount + hasScoreData',
       },
     };
